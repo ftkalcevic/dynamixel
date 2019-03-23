@@ -1,6 +1,21 @@
 #include "pch.h"
 #include "Dynamixel.h"
 
+#if defined(_WIN32) || defined(_WIN64)
+#else
+
+#include <stdio.h>
+#include <fcntl.h>
+#include <string.h>
+#include <unistd.h>
+#include <termios.h>
+#include <time.h>
+#include <sys/time.h>
+#include <sys/ioctl.h>
+#include <linux/serial.h>
+
+#endif
+
 static const uint8_t H1 = 0;
 static const uint8_t H2 = 1;
 static const uint8_t ID = 2;
@@ -23,14 +38,14 @@ static const uint8_t TORQUE_ENABLE = 24;
 
 static const uint16_t MAX_PACKET_LEN = 257;
 
-Dynamixel::Dynamixel(std::string portName, int baud) : portName(portName), baud(baud)
+Dynamixel::Dynamixel(std::string portName, int baud) : baud(baud), portName(portName)
 {
 	hPort = INVALID_HANDLE_VALUE;
 	tx_time_per_byte = 0;
 	reply_delay = 0;
 	checksumErrors = 0;
-	statusChecksumErrors = 0;
 	timeoutErrors = 0;
+    dataErrors = 0;
 	packetBuilt = false;
 	readPositionPacket = NULL;
 
@@ -126,7 +141,7 @@ void Dynamixel::BlockingReadPositions()
 #define OneMS 0.001
 	double timeoutDouble = (OneMS + readPositionPacketLen * tx_time_per_byte + 10 * tx_time_per_byte + OneMS);
 	int64_t timePeriod = (int64_t)(timeoutDouble * timerFrequency);
-	int64_t timeout = getTimer() + timePeriod;
+    int64_t timeout = getTimer() + timePeriod;
 	while (true)
 	{
 		if (getTimer() > timeout)
@@ -135,14 +150,14 @@ void Dynamixel::BlockingReadPositions()
 			break;
 		}
 
-		if (bytesAvailable() > 0)
+        if (bytesAvailable() > 0)
 		{
 			int bytesRead = read(buffer, sizeof(buffer));
 			if (ProcessReadPositions(buffer, bytesRead))
 				break;
 			timeout = getTimer() + timePeriod;
 		}
-		Sleep(1);	// sleep 1ms
+		delayms(1);	// sleep 1ms
 	}
 }
 
@@ -204,13 +219,21 @@ bool Dynamixel::ProcessReadPositions(uint8_t *buffer, int len)
 	return false;
 }
 
-void Dynamixel::ProcessPosition(uint8_t id, uint8_t *buffer, uint8_t len)
+void Dynamixel::ProcessPosition(uint8_t id, uint8_t *buffer, uint8_t /*len*/)
 {
 	// position comes back in a status packet
 
 	// id
 	uint16_t position = buffer[1] | (buffer[2] << 8);
-	devicesById[id]->UpdatePosition(position);
+    Device *dev = devicesById[id];
+    if ( dev )
+    {
+        dev->UpdatePosition(position);
+    }
+    else
+    {
+        dataErrors++;
+    }
 }
 
 void Dynamixel::setVelocities()
@@ -433,4 +456,165 @@ int64_t Dynamixel::getTimer()
 	return counter.QuadPart;
 }
 
+void Dynamixel::delayms(uint32_t ms)
+{
+    Sleep(ms);
+}
+#else
+
+static int getCFlagBaud(int baudrate)
+{
+	switch(baudrate)
+	{
+		case 9600:
+			return B9600;
+		case 19200:
+			return B19200;
+		case 38400:
+			return B38400;
+		case 57600:
+			return B57600;
+		case 115200:
+			return B115200;
+		case 230400:
+			return B230400;
+		case 460800:
+			return B460800;
+		case 500000:
+			return B500000;
+		case 576000:
+			return B576000;
+		case 921600:
+			return B921600;
+		case 1000000:
+			return B1000000;
+		case 1152000:
+			return B1152000;
+		case 1500000:
+			return B1500000;
+		case 2000000:
+			return B2000000;
+		case 2500000:
+			return B2500000;
+		case 3000000:
+			return B3000000;
+		case 3500000:
+			return B3500000;
+		case 4000000:
+			return B4000000;
+		default:
+			return -1;
+	}
+}
+
+static bool setCustomBaudrate(HANDLE hPort, int speed)
+{
+	// try to set a custom divisor
+	struct serial_struct ss;
+	if(ioctl(hPort, TIOCGSERIAL, &ss) != 0)
+	{
+		printf("[PortHandlerLinux::SetCustomBaudrate] TIOCGSERIAL failed!\n");
+		return false;
+	}
+
+	ss.flags = (ss.flags & ~ASYNC_SPD_MASK) | ASYNC_SPD_CUST;
+	ss.custom_divisor = (ss.baud_base + (speed / 2)) / speed;
+	int closest_speed = ss.baud_base / ss.custom_divisor;
+
+	if(closest_speed < speed * 98 / 100 || closest_speed > speed * 102 / 100)
+	{
+		printf("[PortHandlerLinux::SetCustomBaudrate] Cannot set speed to %d, closest is %d \n", speed, closest_speed);
+		return false;
+	}
+
+	if(ioctl(hPort, TIOCSSERIAL, &ss) < 0)
+	{
+		printf("[PortHandlerLinux::SetCustomBaudrate] TIOCSSERIAL failed!\n");
+		return false;
+	}
+
+	return true;
+}
+
+
+bool Dynamixel::open()
+{
+	struct termios newtio;
+
+	hPort = ::open(portName.c_str(), O_RDWR|O_NOCTTY|O_NONBLOCK);
+	if(hPort < 0)
+	{
+        printf("[PortHandlerLinux::SetupPort] Error opening serial port! Errno=%d\n", errno );
+		return false;
+	}
+
+	bzero(&newtio, sizeof(newtio)); // clear struct for new port settings
+
+    int cflag_baud = getCFlagBaud(baud);
+    bool customBaud = cflag_baud <= 0;
+    if ( customBaud ) cflag_baud = B9600;
+
+	newtio.c_cflag = cflag_baud | CS8 | CLOCAL | CREAD;
+	newtio.c_iflag = IGNPAR;
+	newtio.c_oflag      = 0;
+	newtio.c_lflag      = 0;
+	newtio.c_cc[VTIME]  = 0;
+	newtio.c_cc[VMIN]   = 0;
+
+	// clean the buffer and activate the settings for the port
+	tcflush(hPort, TCIFLUSH);
+	tcsetattr(hPort, TCSANOW, &newtio);
+
+    if ( customBaud )
+    {
+        setCustomBaudrate( hPort, baud );
+    }
+
+	tx_time_per_byte = 10.0 / (double)baud;		// This doesn't take into account the "polling" action of USB
+	return true;
+}
+
+void Dynamixel::close()
+{
+	if (hPort != INVALID_HANDLE_VALUE)
+	{
+		::close(hPort);
+		hPort = INVALID_HANDLE_VALUE;
+	}
+}
+
+int Dynamixel::bytesAvailable()
+{
+ 	int bytes_available=0;
+  	ioctl(hPort, FIONREAD, &bytes_available);
+  	return bytes_available;
+}
+
+int Dynamixel::write(uint8_t *buffer, uint8_t len)
+{
+	return ::write(hPort, buffer, len);
+}
+
+int Dynamixel::read(uint8_t *buffer, uint8_t len)
+{
+	return ::read(hPort, buffer, len);
+}
+
+void Dynamixel::initTimer()
+{
+	timerFrequency = 1000;
+}
+
+int64_t Dynamixel::getTimer()
+{
+	struct timespec tv;
+	clock_gettime(CLOCK_REALTIME, &tv);
+	return ((double)tv.tv_sec * 1000.0 + (double)tv.tv_nsec * 0.001 * 0.001);
+}
+
+void Dynamixel::delayms(uint32_t ms)
+{
+    usleep(ms*1000);
+}
+#
 #endif

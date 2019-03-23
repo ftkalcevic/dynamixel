@@ -26,10 +26,6 @@ class Dynamixel
 	uint8_t readBuffer[READ_BUFFER_SIZE];
 	uint8_t devicesToRead;
 
-	int checksumErrors;
-	int statusChecksumErrors;
-	int timeoutErrors;
-
 	void buildPackets();
 	uint8_t CalcChecksum(uint8_t *buffer, uint8_t len);
 	bool CheckStatusChecksum(uint8_t *buffer, uint8_t len);
@@ -62,5 +58,10 @@ public:
 	int write(uint8_t *buffer, uint8_t len);
 	int read(uint8_t *buffer, uint8_t len);
 	int bytesAvailable();
+    static void delayms(uint32_t ms);
+
+    int checksumErrors;
+    int timeoutErrors;
+    int dataErrors;
 };
 

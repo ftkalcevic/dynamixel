@@ -9,14 +9,21 @@
 
 int main()
 {
+#if defined(_WIN32) || defined(_WIN64)
 	Dynamixel dmx("\\\\.\\COM21",3000000);
+#else
+	Dynamixel dmx("/dev/ttyUSB0",3000000);
+#endif
 
 	RX48 id2(2);
 	RX48 id3(3);
 	dmx.addDevice(&id2);
 	dmx.addDevice(&id3);
 
-	dmx.open();
+    if ( !dmx.open() )
+    {
+        return -1;
+    }
 	dmx.enableTorque(false);
 	dmx.setWheelMode();
 	dmx.readPositions();
@@ -27,13 +34,16 @@ int main()
 	for (int i = 0; i < 10000; i++)
 	{
 		dmx.readPositions();
-		std::cout << "2:" << id2.position << ", 3:" << id3.position << "\n";
+        std::cerr << "2:" << id2.position << ", 3:" << id3.position << "\n";
 		//std::cout << "2:" << id2.last_position << ", 3:" << id3.last_position << "\n";
-		Sleep(100);
+		dmx.delayms(100);
 	}
 	dmx.close();
 
-    std::cout << "Hello World!\n"; 
+    std::cerr << "Run done!\n";
+    std::cerr << "Checksum Errors: " << dmx.checksumErrors << "\n";
+    std::cerr << "Timeout Errors: " << dmx.timeoutErrors << "\n";
+    std::cerr << "Data Errors: " << dmx.dataErrors << "\n";
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu

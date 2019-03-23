@@ -9,7 +9,13 @@
 #ifndef PCH_H
 #define PCH_H
 
-#include <Windows.h>
+#if defined(_WIN32) || defined(_WIN64)
+    #include <Windows.h>
+#else
+    #define HANDLE  int
+    #define INVALID_HANDLE_VALUE    -1
+#endif
+
 #include <stdint.h>
 #include <vector>
 #include <map>
