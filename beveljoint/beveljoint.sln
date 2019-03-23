@@ -1,0 +1,30 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.23107.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "beveljoint", "beveljoint\beveljoint.csproj", "{0945772F-A57D-4C01-9E51-8DDEA6C58326}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
+		Release|Any CPU = Release|Any CPU
+		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0945772F-A57D-4C01-9E51-8DDEA6C58326}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0945772F-A57D-4C01-9E51-8DDEA6C58326}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0945772F-A57D-4C01-9E51-8DDEA6C58326}.Debug|Win32.ActiveCfg = Debug|Any CPU
+		{0945772F-A57D-4C01-9E51-8DDEA6C58326}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0945772F-A57D-4C01-9E51-8DDEA6C58326}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0945772F-A57D-4C01-9E51-8DDEA6C58326}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0945772F-A57D-4C01-9E51-8DDEA6C58326}.Release|Win32.ActiveCfg = Release|Any CPU
+		{0945772F-A57D-4C01-9E51-8DDEA6C58326}.Release|x64.ActiveCfg = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
