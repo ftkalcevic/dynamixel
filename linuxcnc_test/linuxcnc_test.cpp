@@ -24,20 +24,26 @@ int main()
     {
         return -1;
     }
-	dmx.enableTorque(false);
-	dmx.setWheelMode();
-	dmx.readPositions();
-	id2.velocity = 50;
+    dmx.enableTorque();
+    dmx.setWheelMode();
+    dmx.readPositions();
+    id2.velocity = 50;
 	id3.velocity = 1024 | 10;
-	dmx.setVelocities();
-	dmx.enableTorque(true);
-	for (int i = 0; i < 10000; i++)
+    dmx.setVelocities();
+    id2.enable = true;
+    id3.enable = true;
+    dmx.enableTorque();
+    for (int i = 0; i < 10000; i++)
 	{
 		dmx.readPositions();
-        std::cerr << "2:" << id2.position << ", 3:" << id3.position << "\n";
-		//std::cout << "2:" << id2.last_position << ", 3:" << id3.last_position << "\n";
-		dmx.delayms(100);
-	}
+        //std::cerr << "2:" << id2.position << ", 3:" << id3.position << "\n";
+        //std::cout << "2:" << id2.last_position << ", 3:" << id3.last_position << "\n";
+        //dmx.delayms(100);
+        dmx.setVelocities();
+    }
+    id2.enable = false;
+    id3.enable = false;
+    dmx.enableTorque();
 	dmx.close();
 
     std::cerr << "Run done!\n";

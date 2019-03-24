@@ -6,8 +6,6 @@
 
 class Dynamixel
 {
-	std::vector<Device *> devices;
-	std::map<uint8_t,Device *> devicesById;
 	bool packetBuilt;
 	uint8_t *readPositionPacket;
 	uint8_t *setVelocityPacket;
@@ -46,12 +44,12 @@ class Dynamixel
 	} readPositionsState;
 
 public:
-	Dynamixel(std::string portName, int baud);
+    Dynamixel(std::string portName, int baud);
 	~Dynamixel();
 	void addDevice(Device *device);
 	void readPositions();
 	void setVelocities();
-	void enableTorque(bool enable);
+    void enableTorque();
 	void setWheelMode();
 	bool open();
 	void close();
@@ -59,6 +57,9 @@ public:
 	int read(uint8_t *buffer, uint8_t len);
 	int bytesAvailable();
     static void delayms(uint32_t ms);
+
+    std::vector<Device *> devices;
+    std::map<uint8_t,Device *> devicesById;
 
     int checksumErrors;
     int timeoutErrors;

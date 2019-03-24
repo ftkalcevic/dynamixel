@@ -5,8 +5,8 @@
 Device::Device(uint8_t id) : id(id)
 {
 	first = true;
+    enable = 0;
 }
-
 
 Device::~Device()
 {

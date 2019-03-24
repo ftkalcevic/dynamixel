@@ -10,6 +10,7 @@ public:
 	uint16_t last_position;
 	int32_t position;
 	bool first;
+    bool enable;
 
 	void UpdatePosition(uint16_t position);
 };

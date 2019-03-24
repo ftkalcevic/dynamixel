@@ -65,7 +65,7 @@ void Dynamixel::addDevice(Device *device)
 	packetBuilt = false;
 }
 
-void Dynamixel::enableTorque(bool enable)
+void Dynamixel::enableTorque()
 {
 	const int PacketLen = 5 + 2 + 2 * (uint8_t)devices.size() + 1;
 	uint8_t Packet[MAX_PACKET_LEN];
@@ -81,7 +81,7 @@ void Dynamixel::enableTorque(bool enable)
 	for (unsigned int i = 0; i < devices.size(); i++)
 	{
 		*(data++) = devices[i]->id;
-		*(data++) = enable ? 1: 0;
+        *(data++) = devices[i]->enable;
 	}
 	Packet[PacketLen - 1] = CalcChecksum(Packet + ID, PacketLen - 3);
 
@@ -132,7 +132,7 @@ void Dynamixel::readPositions()
 
 void Dynamixel::BlockingReadPositions()
 {
-	uint8_t buffer[64];
+    uint8_t buffer[4096];
 
 	readPositionsState = WaitForHeader;
 	devicesToRead = (uint8_t)devices.size();
@@ -141,23 +141,27 @@ void Dynamixel::BlockingReadPositions()
 #define OneMS 0.001
 	double timeoutDouble = (OneMS + readPositionPacketLen * tx_time_per_byte + 10 * tx_time_per_byte + OneMS);
 	int64_t timePeriod = (int64_t)(timeoutDouble * timerFrequency);
-    int64_t timeout = getTimer() + timePeriod;
+    int64_t timeout = this->getTimer() + timePeriod;
+    int loopcount=0;
 	while (true)
 	{
-		if (getTimer() > timeout)
+        int ba = bytesAvailable();
+        if (ba > 0)
 		{
-			timeoutErrors++;
-			break;
-		}
-
-        if (bytesAvailable() > 0)
-		{
-			int bytesRead = read(buffer, sizeof(buffer));
+            int bytesRead = read(buffer, ba);
 			if (ProcessReadPositions(buffer, bytesRead))
 				break;
-			timeout = getTimer() + timePeriod;
+            timeout = this->getTimer() + timePeriod;
 		}
-		delayms(1);	// sleep 1ms
+        int64_t t = this->getTimer();
+        if (t > timeout)
+        {
+            timeoutErrors++;
+            break;
+        }
+
+        delayms(1);	// sleep 1ms
+        loopcount++;
 	}
 }
 
@@ -602,19 +606,21 @@ int Dynamixel::read(uint8_t *buffer, uint8_t len)
 
 void Dynamixel::initTimer()
 {
-	timerFrequency = 1000;
+    // us
+    timerFrequency = 1000000;
 }
 
 int64_t Dynamixel::getTimer()
 {
 	struct timespec tv;
 	clock_gettime(CLOCK_REALTIME, &tv);
-	return ((double)tv.tv_sec * 1000.0 + (double)tv.tv_nsec * 0.001 * 0.001);
+    int64_t t = tv.tv_sec * 1000000 + tv.tv_nsec /1000;
+    return t;
 }
 
 void Dynamixel::delayms(uint32_t ms)
 {
     usleep(ms*1000);
 }
-#
+
 #endif

@@ -56,7 +56,7 @@ public:
 	int write(uint8_t *buffer, uint8_t len);
 	int read(uint8_t *buffer, uint8_t len);
 	int bytesAvailable();
-    static void delayms(uint32_t ms);
+    static void delayus(uint32_t us);
 
     std::vector<Device *> devices;
     std::map<uint8_t,Device *> devicesById;
