@@ -12,7 +12,7 @@ int main()
 #if defined(_WIN32) || defined(_WIN64)
 	Dynamixel dmx("\\\\.\\COM21",3000000);
 #else
-	Dynamixel dmx("/dev/ttyUSB0",3000000);
+        Dynamixel dmx("/dev/ttyUSB0",3000000);
 #endif
 
 	RX48 id2(2);
