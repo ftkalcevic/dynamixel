@@ -7,48 +7,66 @@
 
 #include "serial.h"
 
-enum EEPROMAddress : uint8_t 
+struct EEpromRegisters
 {
-	ModelNumber=0,			// 2
-	FirmwareVersion=2,		// 1
-	ID=3,					// 1
-	BaudRate=4,				// 1
-	ReturnDelayTime=5,		// 1
-	CWAngleLimit=6,			// 2
-	CCWAngleLimit=8,		// 2
-	TemperatureLimit=11,	// 1	
-	MinVoltageLimit=12,		// 1	
-	MaxVoltageLimit=13,		// 1	
-	MaxTorque=14,			// 2	
-	StatusReturnLevel=16,	// 1	
-	AlarmLED=17,			// 1	
-	Shutdown=18,			// 1	
-	MultiTurnOffset=20,		// 2	
-	ResolutionDivider=22,	// 1	
-	EepromCRC=23,			// 1	
+	uint16_t ModelNumber;			// 0
+	uint8_t FirmwareVersion;		// 2
+	uint8_t ID;						// 3
+	uint8_t BaudRate;				// 4
+	uint8_t ReturnDelayTime;		// 5
+	uint16_t CWAngleLimit;			// =6
+	uint16_t CCWAngleLimit;			// =8
+	uint8_t pad1;
+	uint8_t TemperatureLimit;		// 11
+	uint8_t MinVoltageLimit;		// 12
+	uint8_t MaxVoltageLimit;		// 13
+	uint16_t MaxTorque;				// 14
+	uint8_t StatusReturnLevel;		// 16
+	uint8_t AlarmLED;				// 17
+	uint8_t Shutdown;				// 18
+	uint8_t pad2;
+	int16_t MultiTurnOffset;		// 20
+	uint8_t ResolutionDivider;		// 22
+	uint8_t EepromCRC;				// 23
 };
 
-enum ControlAddress : uint8_t 
+struct ControlRegisters
 {
-	TorqueEnable		=24, //	1	
-	LEDStatus			=25, //	1	
-	DGain				=26, //	1	
-	IGain				=27, //	1	
-	PGain				=28, //	1	
-	GoalPosition		=30, //	2	
-	MovingSpeed			=32, //	2	
-	TorqueLimit			=34, //	2	
-	PresentPosition		=36, //	2	
-	PresentSpeed		=38, //	2	
-	PresentLoad			=40, //	2	
-	PresentVoltage		=42, //	1	
-	PresentTemperature	=43, //	1	
-	Registered			=44, //	1	
-	Moving				=46, //	1	
-	Lock				=47, //	1	
-	Punch				=48, //	2	
-	RealtimeTick		=50, //	2	
-	GoalAcceleration	=73, //	1	
+	uint8_t TorqueEnable;		// 24	
+	uint8_t LEDStatus;			// 25	
+	uint8_t DGain;				// 26	
+	uint8_t IGain;				// 27	
+	uint8_t PGain;				// 28	
+	uint8_t pad3;
+	uint16_t GoalPosition;		// 30	
+	uint16_t MovingSpeed;		// 32	
+	uint16_t TorqueLimit;		// 34	
+	uint16_t PresentPosition;	// 36	
+	uint16_t PresentSpeed;		// 38	
+	uint16_t PresentLoad;		// 40	
+	uint8_t PresentVoltage;		// 42	
+	uint8_t PresentTemperature;	// 43	
+	uint8_t Registered;			// 44	
+	uint8_t pad4;
+	uint8_t Moving;				// 46	
+	uint8_t Lock;				// 47	
+	uint16_t Punch;				// 48	
+	uint16_t RealtimeTick;		// 50	
+	uint8_t pad5[21];
+	uint8_t GoalAcceleration;	// 73	
+};
+
+struct Registers
+{
+	union 
+	{
+		struct 
+		{
+			EEpromRegisters e;
+			ControlRegisters c;
+		};
+		uint8_t r[0];
+	};
 };
 
 class Protocol1
@@ -108,9 +126,9 @@ class Protocol1
 	uint8_t errorFlags;
 	
 public:
-	uint8_t registers[REGISTERS];
-	uint8_t controlregisters[REGISTERS];
-	uint8_t control[REGISTERS];
+	Registers registers;
+	Registers controlregisters;
+	Registers control;
 	
 	Protocol1(SerialBase &serial, uint8_t deviceID)
 		: serial(serial)
@@ -119,8 +137,8 @@ public:
 		last_byte_tick = 0;
 		skipMessages = 0;
 		errorFlags = 0;
-		memset(control, 0, sizeof(control));
-		
+		memset(&control, 0, sizeof(control));
+		SetFactoryDefaults();
 	}
 
 	void Start()
@@ -307,7 +325,7 @@ public:
 					}
 				if (!found)
 					return REPLY_NONE;
-				MakeStatusReply( registers + addr, len);
+				MakeStatusReply( registers.r + addr, len);
 				return repliesToSkip;
 			}
 				
@@ -318,7 +336,7 @@ public:
 					uint8_t addr = params[0];
 					uint8_t len = params[1];
 					// TODO error check len and addr
-					MakeStatusReply( registers + addr, len);
+					MakeStatusReply( registers.r + addr, len);
 					return REPLY_NOW;
 				}
 				else
@@ -331,7 +349,7 @@ public:
 				uint8_t len = readLen-2;
 				// TODO error check len and addr
 				// TODO Don't update eeprom when locked
-				memcpy(registers + addr, params + 1, len);
+				memcpy(registers.r + addr, params + 1, len);
 				// TODO something with updated registers.
 				if (reply)
 				{
@@ -353,7 +371,7 @@ public:
 					if(params[i] == deviceId)
 					{
 						// TODO Don't update eeprom when locked
-						memcpy(registers + addr, params + i + 1, len);
+						memcpy(registers.r + addr, params + i + 1, len);
 						if (reply)
 						{
 							MakeStatusReply(NULL,0);
@@ -370,8 +388,9 @@ public:
 				uint8_t addr = params[0];
 				uint8_t len = readLen-2;
 				// TODO error check len and addr
-				memcpy(controlregisters + addr, params + 1, len);
-				memset(control + addr, 1, len);
+				memcpy(controlregisters.r + addr, params + 1, len);
+				memset(control.r + addr, 1, len);
+				control.c.Registered = 1;
 				
 				// TODO something with updated registers.
 				if (reply)
@@ -386,16 +405,20 @@ public:
 			case INS_ACTION:
 			{
 				// TODO Don't update eeprom when locked
-				int writes = 0;
-				for (int i = 0; i < sizeof(registers); i++)
-					if (control[i])
-					{
-						registers[i] = controlregisters[i];
-						control[i] = 0;
-						writes++;
-					}
-				if (!writes)
+				if(!control.c.Registered)
+				{
 					setErrorStatus(ERROR_INSTRUCTION);
+				}
+				else
+				{
+					control.c.Registered = 0;
+					for (int i = 0; i < sizeof(registers); i++)
+						if (control.r[i])
+						{
+							registers.r[i] = controlregisters.r[i];
+							control.r[i] = 0;
+						}
+				}
 
 				// TODO something with updated registers.
 				if (reply)
@@ -447,28 +470,23 @@ public:
 	
 	void SetFactoryDefaults()
 	{
-		registers[EEPROMAddress::ModelNumber] = 29;			// 2
-		registers[EEPROMAddress::ModelNumber+1] = 0x80;		// 2
-		registers[EEPROMAddress::FirmwareVersion] = 7;		// 1
-		registers[EEPROMAddress::ID] = 1;					// 1
-		registers[EEPROMAddress::BaudRate] = 34;			// 1
-		registers[EEPROMAddress::ReturnDelayTime] = 250;	// 1
-		registers[EEPROMAddress::CWAngleLimit] = 0;			// 2
-		registers[EEPROMAddress::CWAngleLimit+1] = 0;		// 2
-		registers[EEPROMAddress::CCWAngleLimit] = 0xFF;		// 2
-		registers[EEPROMAddress::CCWAngleLimit+1] = 0x0F;	// 2
-		registers[EEPROMAddress::TemperatureLimit] = 80;	// 1	
-		registers[EEPROMAddress::MinVoltageLimit] = 60;		// 1	
-		registers[EEPROMAddress::MaxVoltageLimit] = 160;	// 1	
-		registers[EEPROMAddress::MaxTorque] = 0xff;			// 2	
-		registers[EEPROMAddress::MaxTorque+1] = 0x03;		// 2	
-		registers[EEPROMAddress::StatusReturnLevel] = 2;	// 1	
-		registers[EEPROMAddress::AlarmLED] = 36;			// 1	
-		registers[EEPROMAddress::Shutdown] = 36;			// 1	
-		registers[EEPROMAddress::MultiTurnOffset] = 0;		// 2	
-		registers[EEPROMAddress::MultiTurnOffset+1] = 0;	// 2	
-		registers[EEPROMAddress::ResolutionDivider] = 1;	// 1		
-		registers[EEPROMAddress::EepromCRC] = CalcCRC(registers, EEPROMAddress::ResolutionDivider);	// 1		
+		registers.e.ModelNumber = 0x8000+29;
+		registers.e.FirmwareVersion = 7;
+		registers.e.ID = 1;
+		registers.e.BaudRate = 34;
+		registers.e.ReturnDelayTime = 250;
+		registers.e.CWAngleLimit = 0;
+		registers.e.CCWAngleLimit = 0xFFF;
+		registers.e.TemperatureLimit = 80;
+		registers.e.MinVoltageLimit = 60;
+		registers.e.MaxVoltageLimit = 160;
+		registers.e.MaxTorque = 0x3ff;
+		registers.e.StatusReturnLevel = 2;
+		registers.e.AlarmLED = 36;
+		registers.e.Shutdown = 36;
+		registers.e.MultiTurnOffset = 0;
+		registers.e.ResolutionDivider = 1;
+		registers.e.EepromCRC = CalcCRC(registers.r, sizeof(registers.e)-1);
 	}
 	
 	void ReadEEPROM()

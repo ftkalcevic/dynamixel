@@ -47,6 +47,7 @@ int main()
 	{
         return -1;
     }
+	dmx.ping(id4.id);
     dmx.enableTorque();
     dmx.setWheelMode();
     dmx.readPositions();
