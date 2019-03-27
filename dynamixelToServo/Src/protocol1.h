@@ -138,11 +138,12 @@ public:
 		skipMessages = 0;
 		errorFlags = 0;
 		memset(&control, 0, sizeof(control));
-		SetFactoryDefaults();
 	}
 
 	void Start()
 	{
+		ReadEEPROM();
+		SetControlDefaults();
 		state = State::ReadHeader1;
 		serial.Start();
 	}
@@ -220,10 +221,7 @@ public:
 								skipMessages = reply;
 							}
 						}
-						//ProcessPacket();
-						// if readId = deviceid, process, delay, reply reply
-						// if readid = broadcast, and ins = bulk read, reply after others in the list in the correct order.
-						// if readid = broadcast, process
+
 						state = State::ReadHeader1;
 					}
 					else
@@ -233,7 +231,6 @@ public:
 					}
 					break;
 			}
-			
 		}
 	}
 
@@ -489,8 +486,54 @@ public:
 		registers.e.EepromCRC = CalcCRC(registers.r, sizeof(registers.e)-1);
 	}
 	
+	void SetControlDefaults()
+	{
+		registers.c.TorqueEnable = 0;		
+		registers.c.LEDStatus = 0;			
+		registers.c.DGain = 0;				
+		registers.c.IGain = 0;				
+		registers.c.PGain = 32;				
+		registers.c.GoalPosition = 0;		
+		registers.c.MovingSpeed = 0;		
+		registers.c.TorqueLimit = registers.e.MaxTorque;		
+		registers.c.PresentPosition = 0;	
+		registers.c.PresentSpeed = 0;		
+		registers.c.PresentLoad = 0;		
+		registers.c.PresentVoltage = 0;		
+		registers.c.PresentTemperature = 0;	
+		registers.c.Registered = 0;			
+		registers.c.Moving = 0;				
+		registers.c.Lock = 0;				
+		registers.c.Punch = 0;				
+		registers.c.RealtimeTick = 0;		
+		registers.c.GoalAcceleration = 0;	
+	}
+	
+	void WriteEEPROM()
+	{
+		uint32_t addr = (uint32_t)emulatedEeprom;
+		HAL_FLASH_Unlock();
+		
+		FLASH_PageErase(addr);
+        CLEAR_BIT(FLASH->CR, FLASH_CR_PER);
+		for (uint16_t i = 0; i < sizeof(registers.e); i += 2)
+			HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD,addr + i, *(uint16_t *)(registers.r + i));
+		HAL_FLASH_Lock();
+	}
+	
 	void ReadEEPROM()
 	{
-		
+		memcpy(&(registers.e), emulatedEeprom, sizeof(registers.e));
+		uint8_t crc = CalcCRC((const uint8_t *)&(registers.e), sizeof(registers.e) - 1);
+		if (crc != registers.e.EepromCRC)
+		{
+			SetFactoryDefaults();
+			WriteEEPROM();
+		}
 	}
 };
+
+
+// TODO
+// Don't use HAL for serial TX.  There's too big an overhead setting up and handling irrelevant scenarios.
+// 

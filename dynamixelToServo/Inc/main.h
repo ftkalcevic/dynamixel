@@ -77,7 +77,9 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 extern CRC_HandleTypeDef hcrc;
-
+extern const uint8_t emulatedEeprom[1024];
+extern void    FLASH_PageErase(uint32_t PageAddress);
+	
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

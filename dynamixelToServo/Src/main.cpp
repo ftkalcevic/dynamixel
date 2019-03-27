@@ -75,7 +75,10 @@ DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_usart1_tx;
 
 /* USER CODE BEGIN PV */
-
+static Serial< SerialImpl<true, 128, true, 0, false, true, GPIOA_BASE, RS485_DE_Pin> >  serialBus(huart1);
+static Protocol1 bus(serialBus, 4);
+SERIAL_IRQHANDLER_IMPL(serialBus, 1);
+const uint8_t emulatedEeprom[1024] __attribute__((section("eeprom"), aligned(1024))) = {0};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -92,9 +95,6 @@ static void MX_CRC_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static Serial< SerialImpl<true, 128, true, 0, false, true, GPIOA_BASE, RS485_DE_Pin> >  serialBus(huart1);
-static Protocol1 bus(serialBus, 4);
-SERIAL_IRQHANDLER_IMPL(serialBus, 1);
 
 
 static void MainLoop()
