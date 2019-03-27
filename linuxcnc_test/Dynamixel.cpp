@@ -15,6 +15,7 @@ static const uint8_t HEADER2 = 0xFF;
 static const uint8_t BROADCAST_ID = 0xFE;
 static const uint8_t SYNC_WRITE = 0x83;
 static const uint8_t BULK_READ = 0x92;
+static const uint8_t PING = 0x01;
 
 static const uint8_t CW_ANGLE_LIMIT = 6;
 static const uint8_t MOVING_SPEED = 32;
@@ -48,6 +49,21 @@ void Dynamixel::addDevice(Device *device)
 	devices.push_back(device);
 	devicesById[device->id] = device;
 	packetBuilt = false;
+}
+
+void Dynamixel::ping(int id)
+{
+	const int PacketLen = 6;
+	uint8_t Packet[MAX_PACKET_LEN];
+	Packet[H1] = HEADER1;
+	Packet[H2] = HEADER2;
+	Packet[ID] = id;
+	Packet[LEN] = PacketLen - 4;
+	Packet[INS] = PING;
+	Packet[PacketLen - 1] = CalcChecksum(Packet + ID, PacketLen - 3);
+
+	write(Packet, PacketLen);
+	BlockingReadStatus();
 }
 
 void Dynamixel::enableTorque(bool enable)
@@ -100,7 +116,6 @@ void Dynamixel::setWheelMode()
 
 	// Send the velocity packet.  There is no reply because we are sending to the broadcast address. 
 	write(Packet, PacketLen);
-
 }
 
 void Dynamixel::readPositions()
@@ -212,6 +227,86 @@ void Dynamixel::ProcessPosition(uint8_t id, uint8_t *buffer, uint8_t len)
 	uint16_t position = buffer[1] | (buffer[2] << 8);
 	devicesById[id]->UpdatePosition(position);
 }
+
+// cut and paste bogusity
+void Dynamixel::BlockingReadStatus()
+{
+	uint8_t buffer[64];
+
+	readPositionsState = WaitForHeader;
+
+	// Dumb loop
+#define OneMS 0.001
+	double timeoutDouble = (OneMS + readPositionPacketLen * tx_time_per_byte + 10 * tx_time_per_byte + OneMS);
+	int64_t timePeriod = (int64_t)(timeoutDouble * timerFrequency);
+	int64_t timeout = getTimer() + timePeriod;
+	while (true)
+	{
+		if (getTimer() > timeout)
+		{
+			timeoutErrors++;
+			break;
+		}
+
+		if (bytesAvailable() > 0)
+		{
+			int bytesRead = read(buffer, sizeof(buffer));
+			if (ProcessReadStatus(buffer, bytesRead))
+				break;
+			timeout = getTimer() + timePeriod;
+		}
+		Sleep(1);	// sleep 1ms
+	}
+}
+
+bool Dynamixel::ProcessReadStatus(uint8_t *buffer, int len)
+{
+	for (int i = 0; i < len; i++)
+	{
+		uint8_t c = buffer[i];
+		switch (readPositionsState)
+		{
+			case EReadPositionsState::WaitForHeader:
+				if (c == 0xFF)
+					readPositionsState = EReadPositionsState::WaitForHeader2;
+				break;
+			case EReadPositionsState::WaitForHeader2:
+				if (c == 0xFF)
+					readPositionsState = EReadPositionsState::WaitForID;
+				break;
+			case EReadPositionsState::WaitForID:
+				readId = c;
+				readChksum = c;
+				readPositionsState = EReadPositionsState::WaitForLen;
+				break;
+			case EReadPositionsState::WaitForLen:
+				readLen = c - 1;	// exclude chksum
+				readChksum += c;
+				readBytes = 0;
+				readPositionsState = EReadPositionsState::WaitForData;
+				break;
+			case EReadPositionsState::WaitForData:
+				if (readLen == readBytes)
+				{
+					readChksum = ~readChksum;
+
+					if (readChksum != c)
+					{
+						checksumErrors++;
+					}
+					return true;
+				}
+
+				readBuffer[readBytes] = c;
+				readChksum += c;
+				readBytes++;
+
+				break;
+		}
+	}
+	return false;
+}
+
 
 void Dynamixel::setVelocities()
 {
