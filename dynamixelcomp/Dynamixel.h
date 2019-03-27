@@ -33,8 +33,6 @@ class Dynamixel
 	void initTimer();
 	int64_t getTimer();
 	bool ProcessReadPositions(uint8_t *buffer, int bytesRead);
-	bool ProcessReadStatus(uint8_t *buffer, int len);
-	void BlockingReadStatus();
 
 	enum EReadPositionsState
 	{
@@ -52,14 +50,13 @@ public:
 	void readPositions();
 	void setVelocities();
     void enableTorque();
-	void ping(int id);
 	void setWheelMode();
 	bool open();
 	void close();
 	int write(uint8_t *buffer, uint8_t len);
 	int read(uint8_t *buffer, uint8_t len);
 	int bytesAvailable();
-    static void delayms(uint32_t ms);
+    static void delayus(uint32_t us);
 
     std::vector<Device *> devices;
     std::map<uint8_t,Device *> devicesById;
