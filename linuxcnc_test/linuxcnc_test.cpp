@@ -4,7 +4,7 @@
 #include "pch.h"
 #include <iostream>
 #include "Dynamixel.h"
-#include "RX48.h"
+#include "RX28.h"
 #include "linuxcnc_test.h"
 
 int main()
@@ -15,8 +15,8 @@ int main()
         Dynamixel dmx("/dev/ttyUSB0",3000000);
 #endif
 
-	//RX48 id2(2);
-	//RX48 id3(3);
+	//RX28 id2(2);
+	//RX28 id3(3);
 	//dmx.addDevice(&id2);
 	//dmx.addDevice(&id3);
 
@@ -40,7 +40,7 @@ int main()
  //   std::cout << "Hello World!\n"; 
 
 
-	RX48 id4(4);
+	RX28 id4(4);
 	dmx.addDevice(&id4);
 
     if ( !dmx.open() )

@@ -155,7 +155,7 @@
     <ClInclude Include="Dynamixel.h" />
     <ClInclude Include="linuxcnc_test.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="RX48.h" />
+    <ClInclude Include="RX28.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Device.cpp" />
@@ -167,7 +167,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="RX48.cpp" />
+    <ClCompile Include="RX28.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
