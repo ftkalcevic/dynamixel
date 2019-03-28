@@ -79,6 +79,7 @@ void Error_Handler(void);
 extern CRC_HandleTypeDef hcrc;
 extern const uint8_t emulatedEeprom[1024];
 extern void    FLASH_PageErase(uint32_t PageAddress);
+extern uint16_t GetusTick();
 	
 /* USER CODE END EFP */
 

@@ -109,7 +109,8 @@ class Protocol1
 		ReadID,
 		ReadLength,
 		ReadInstruction,
-		ReadData
+		ReadData,
+		SendReply
 	} state;
 	uint8_t deviceId;
 	uint8_t readId;
@@ -120,6 +121,7 @@ class Protocol1
 	uint8_t params[256];	// input params.
 	uint32_t last_byte_tick;
 	uint8_t skipMessages;
+	uint16_t messageReceivedTimestamp;
 	
 	uint8_t replyBuffer[255 + 4];	// output buffer
 	uint16_t replyLength;
@@ -152,86 +154,110 @@ public:
 	{
 		uint32_t tick = HAL_GetTick();	// ms tick
 		
-		while (serial.ReadDataAvailable())
+		while (true)
 		{
 			if ( tick - last_byte_tick > BYTE_TIMEOUT )
 				state = State::ReadHeader1;
 			
-			last_byte_tick = tick;
-			uint8_t c = serial.ReadByte();
-			switch (state)
+			// special handling of send reply, which relies on time events, not data
+			if (state == State::SendReply && GetusTick() - messageReceivedTimestamp >= 2 * registers.e.ReturnDelayTime)
 			{
-				case State::ReadHeader1:
-					if (c == HEADER_BYTE1)
-						state = State::ReadHeader2;
-					break;
-				case State::ReadHeader2:
-					if (c == HEADER_BYTE2)
-						state = State::ReadID;
-					else
-						state = State::ReadHeader1;
-					break;
-				case State::ReadID:
-					readId = c;
-					chksum = c;
-					state = State::ReadLength;
-					break;
-				case State::ReadLength:
-					readLen = c;	// Bytes to read after instruction (params+chksum)
-					chksum += c;
-					bytesRead = 0;
-					state = State::ReadInstruction;
-					break;
-				case State::ReadInstruction:
-					readIns = c;
-					chksum += c;
-					state = State::ReadData;
-					break;
-				case State::ReadData:
-					if (bytesRead == readLen-2)
-					{
-						// done.  c is chksum
-						chksum = ~chksum;
-						
-						// process packet.  
-						if(skipMessages)
-						{
-							skipMessages--;
-							if (skipMessages == 0)
-							{
-								serial.SendPacket(replyBuffer, replyLength);
-								state = State::ReadHeader1;
-							}
-						}
-						else if(readId == deviceId || readId == BROADCAST_ID)
-						{
-							// For us.
-							int8_t reply = ProcessMessage(c != chksum);
-							if (reply == REPLY_NONE)
-							{
-								state = State::ReadHeader1;
-							}
-							else if (reply == REPLY_NOW)
-							{
-								serial.SendPacket(replyBuffer, replyLength);
-								state = State::ReadHeader1;
-							}
-							else 
-							{
-								skipMessages = reply;
-							}
-						}
-
-						state = State::ReadHeader1;
-					}
-					else
-					{
-						params[bytesRead++] = c;
+				serial.SendPacket(replyBuffer, replyLength);
+				state = State::ReadHeader1;
+			}
+			
+			if (serial.ReadDataAvailable())
+			{
+				last_byte_tick = tick;
+				uint8_t c = serial.ReadByte();
+				switch (state)
+				{
+					case State::ReadHeader1:
+						if (c == HEADER_BYTE1)
+							state = State::ReadHeader2;
+						break;
+					case State::ReadHeader2:
+						if (c == HEADER_BYTE2)
+							state = State::ReadID;
+						else
+							state = State::ReadHeader1;
+						break;
+					case State::ReadID:
+						readId = c;
+						chksum = c;
+						state = State::ReadLength;
+						break;
+					case State::ReadLength:
+						readLen = c; 	// Bytes to read after instruction (params+chksum)
 						chksum += c;
-					}
-					break;
+						bytesRead = 0;
+						state = State::ReadInstruction;
+						break;
+					case State::ReadInstruction:
+						readIns = c;
+						chksum += c;
+						state = State::ReadData;
+						break;
+					case State::ReadData:
+						if (bytesRead == readLen - 2)
+						{
+							messageReceivedTimestamp = GetusTick();
+							// done.  c is chksum
+							chksum = ~chksum;
+						
+							// process packet.  
+							if(skipMessages)
+							{
+								skipMessages--;
+								if (skipMessages == 0)
+								{
+									state = State::SendReply;
+								}
+								else
+								{
+									state = State::ReadHeader1;
+								}
+							}
+							else if(readId == deviceId || readId == BROADCAST_ID)
+							{
+								// For us.
+								int8_t reply = ProcessMessage(c != chksum);
+								if (reply == REPLY_NONE)
+								{
+									state = State::ReadHeader1;
+								}
+								else if (reply == REPLY_NOW)
+								{
+									state = State::SendReply;
+								}
+								else 
+								{
+									skipMessages = reply;
+									state = State::ReadHeader1;
+								}
+							}
+							else
+							{
+								state = State::ReadHeader1;
+							}
+						}
+						else
+						{
+							params[bytesRead++] = c;
+							chksum += c;
+						}
+						break;
+					case State::SendReply:
+						state = State::ReadHeader1;
+						break;
+				}
+			}
+			else
+			{
+				break;
 			}
 		}
+		return false;
 	}
 
 	// reset message specific errors
@@ -343,7 +369,7 @@ public:
 			case INS_WRITE:
 			{
 				uint8_t addr = params[0];
-				uint8_t len = readLen-2;
+				uint8_t len = readLen-3;
 				// TODO error check len and addr
 				// TODO Don't update eeprom when locked
 				memcpy(registers.r + addr, params + 1, len);
@@ -435,6 +461,8 @@ public:
 				if(reply)
 				{
 					MakeStatusReply(NULL, 0);
+					while (GetusTick() - messageReceivedTimestamp >= 2 * registers.e.ReturnDelayTime)
+						continue;
 					serial.SendPacket(replyBuffer, replyLength);
 					while (serial.Transmitting())
 						continue;
@@ -467,7 +495,7 @@ public:
 	
 	void SetFactoryDefaults()
 	{
-		registers.e.ModelNumber = 0x8000+29;
+		registers.e.ModelNumber = 29;//0x8000+29;
 		registers.e.FirmwareVersion = 7;
 		registers.e.ID = 1;
 		registers.e.BaudRate = 34;
@@ -536,4 +564,6 @@ public:
 
 // TODO
 // Don't use HAL for serial TX.  There's too big an overhead setting up and handling irrelevant scenarios.
+// Don't update eeprom when locked
+// error handling
 // 
