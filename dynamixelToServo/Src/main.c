@@ -81,7 +81,7 @@ static Serial< SerialImpl<true, 128, true, 0, false, true, GPIOA_BASE, RS485_DE_
 static Protocol1 bus(serialBus, 4);
 SERIAL_IRQHANDLER_IMPL(serialBus, 1);
 const uint8_t emulatedEeprom[1024] __attribute__((section("eeprom"), aligned(1024))) = {0};
-volatile uint16_t analogs[2];
+volatile uint16_t analogs[8];
 
 /* USER CODE END PV */
 
@@ -118,17 +118,25 @@ uint16_t GetusTick()
 }
 static void UpdateMotor()
 {
-	uint32_t pot = analogs[0];
-	uint32_t i = analogs[1];
+	// do this better (average)
+	uint32_t pot = (analogs[4] + analogs[5] + analogs[6] + analogs[7])/4;
+	uint32_t iload = (analogs[0] + analogs[1] + analogs[2] + analogs[3])/4;
 	
+	// put "mode" in free register (eeprom, ram?)
 	// mode - position, torque (i), velocity (pwm)
 	bus.registers.c.PresentPosition = pot;
+	bus.registers.c.PresentLoad = iload;
 	
-	if (bus.registers.c.MovingSpeed & 0x400)
-		SetMotorDir(false);
-	else
-		SetMotorDir(true);
-	SetMotorPWM(bus.registers.c.MovingSpeed & 0xff);
+	//if ( mode == Current )
+	{
+		if (bus.registers.c.MovingSpeed & 0x400)
+			SetMotorDir(false);
+		else
+			SetMotorDir(true);
+		SetMotorPWM(bus.registers.c.MovingSpeed & 0xff);
+	}
+	
+
 }
 
 static void MainLoop()
@@ -154,8 +162,7 @@ static void MainLoop()
 		// ReadAnalog();
 		// every ms, start ADC, when done, update pid
 		HAL_ADC_Stop_DMA(&hadc1);
-		analogs[0] = analogs[1] = 0;
-		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)analogs, 2);
+		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)analogs, 8);
 		reading_analogs = true;
 	}
 }
@@ -281,7 +288,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 2;
+  hadc1.Init.NbrOfConversion = 8;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
@@ -290,7 +297,28 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_4;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_7CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /**Configure Regular Channel 
+  */
+  sConfig.Rank = ADC_REGULAR_RANK_2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /**Configure Regular Channel 
+  */
+  sConfig.Rank = ADC_REGULAR_RANK_3;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /**Configure Regular Channel 
+  */
+  sConfig.Rank = ADC_REGULAR_RANK_4;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -298,7 +326,28 @@ static void MX_ADC1_Init(void)
   /**Configure Regular Channel 
   */
   sConfig.Channel = ADC_CHANNEL_5;
-  sConfig.Rank = ADC_REGULAR_RANK_2;
+  sConfig.Rank = ADC_REGULAR_RANK_5;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /**Configure Regular Channel 
+  */
+  sConfig.Rank = ADC_REGULAR_RANK_6;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /**Configure Regular Channel 
+  */
+  sConfig.Rank = ADC_REGULAR_RANK_7;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /**Configure Regular Channel 
+  */
+  sConfig.Rank = ADC_REGULAR_RANK_8;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -468,7 +517,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 3000000;
+  huart1.Init.BaudRate = 0;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;

@@ -36,8 +36,9 @@ public:
 		SetDERead();
 	}
 protected:
-	void Start()
+	void Start(uint32_t baudrate)
 	{
+		huart.Instance->BRR = UART_BRR_SAMPLING16(HAL_RCC_GetPCLK2Freq(), baudrate);
 		HAL_UART_Receive_DMA( &huart, RxBuf, rx_buffer_size);
 	}
 	
@@ -62,6 +63,20 @@ protected:
 		SetDEWrite();
 		transmitting = true;
 		HAL_UART_Transmit_DMA(&huart, str, len);
+		
+		
+//		//DMA_SetConfig(huart.hdmatx, (uint32_t)str, (uint32_t)&(huart.Instance->DR), len);
+//  
+//		huart.hdmatx->DmaBaseAddress->IFCR = (DMA_ISR_GIF1 << huart.hdmatx->ChannelIndex);	/* Clear all flags */
+//		huart.hdmatx->Instance->CNDTR = len;		/* Configure DMA Channel data length */
+//		huart.hdmatx->Instance->CPAR = (uint32_t)&(huart.Instance->DR);		/* Configure DMA Channel destination address */
+//		huart.hdmatx->Instance->CMAR = (uint32_t)str;		/* Configure DMA Channel source address */
+//		
+//		__HAL_DMA_ENABLE_IT(huart.hdmatx, DMA_IT_TC);
+//		__HAL_DMA_ENABLE(huart.hdmatx);
+//		__HAL_UART_CLEAR_FLAG(&huart, UART_FLAG_TC);
+//		SET_BIT(huart.Instance->CR3, USART_CR3_DMAT);
+
 	}
 	
 	bool Transmitting(void)
@@ -79,6 +94,8 @@ public:
 	void IRQHandler()
 	{
 		SetDERead();
+//		__HAL_DMA_DISABLE_IT(huart.hdmatx, DMA_IT_TE | DMA_IT_TC);  
+//		__HAL_DMA_CLEAR_FLAG(huart.hdmatx, __HAL_DMA_GET_TC_FLAG_INDEX(huart.hdmatx));
 		transmitting = false;
 	}
 };
@@ -87,6 +104,13 @@ public:
 //											{											\
 //												c.IRQHandler();							\
 //											}
+
+//#define SERIAL_IRQHANDLER_IMPL(c,n)			extern "C" void DMA1_Channel4_IRQHandler()		\
+//											{											\
+//												c.IRQHandler();							\
+//											}
+
+
 #define SERIAL_IRQHANDLER_IMPL(c,n)			extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)	\
 											{											\
 												c.IRQHandler();							\
@@ -97,7 +121,7 @@ public:
 class SerialBase
 {
 public:
-	virtual void Start() = 0;
+	virtual void Start(uint32_t baudrate) = 0;
 	virtual uint32_t Status() = 0;
 	virtual uint8_t ReadByte(void)  = 0;
 	virtual bool ReadDataAvailable(void) = 0;
@@ -113,9 +137,9 @@ public:
 	{
 	}
 	
-	virtual void Start()
+	virtual void Start(uint32_t baudrate)
 	{
-		SerialImpl::Start();
+		SerialImpl::Start(baudrate);
 	}
 	
 	virtual uint32_t Status()

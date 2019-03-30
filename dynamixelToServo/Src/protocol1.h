@@ -76,6 +76,7 @@ class Protocol1
 
 	static const uint8_t BYTE_TIMEOUT = 100;	// 100 ms
 	static const uint8_t REGISTERS = 74;		// Number of registers
+	static const uint8_t EEPROM_REG_MAX = 24;	// Last eeprom register
 
 	static const uint8_t HEADER_BYTE1 = 0xFF;
 	static const uint8_t HEADER_BYTE2 = 0xFF;
@@ -128,9 +129,10 @@ class Protocol1
 	uint8_t errorFlags;
 	
 public:
-	Registers registers;
-	Registers controlregisters;
-	Registers control;
+	Registers registers;			// main set
+	Registers controlregisters;		// holding set for reg_write
+	Registers control;				// dirty flags for reg_write
+	bool eeprom_dirty;
 	
 	Protocol1(SerialBase &serial, uint8_t deviceID)
 		: serial(serial)
@@ -147,7 +149,7 @@ public:
 		ReadEEPROM();
 		SetControlDefaults();
 		state = State::ReadHeader1;
-		serial.Start();
+		serial.Start(baudRate());
 	}
 
 	bool Process()
@@ -371,7 +373,7 @@ public:
 				uint8_t addr = params[0];
 				uint8_t len = readLen-3;
 				// TODO error check len and addr
-				// TODO Don't update eeprom when locked
+				CheckEepromLock(addr, len);
 				memcpy(registers.r + addr, params + 1, len);
 				// TODO something with updated registers.
 				if (reply)
@@ -393,7 +395,7 @@ public:
 				for(int i = 2 ; i < readLen ; i += len)
 					if(params[i] == deviceId)
 					{
-						// TODO Don't update eeprom when locked
+						CheckEepromLock(addr, len);
 						memcpy(registers.r + addr, params + i + 1, len);
 						if (reply)
 						{
@@ -413,7 +415,7 @@ public:
 				// TODO error check len and addr
 				memcpy(controlregisters.r + addr, params + 1, len);
 				memset(control.r + addr, 1, len);
-				control.c.Registered = 1;
+				registers.c.Registered = 1;
 				
 				// TODO something with updated registers.
 				if (reply)
@@ -427,18 +429,28 @@ public:
 				
 			case INS_ACTION:
 			{
-				// TODO Don't update eeprom when locked
-				if(!control.c.Registered)
+				if(!registers.c.Registered)
 				{
 					setErrorStatus(ERROR_INSTRUCTION);
 				}
 				else
 				{
-					control.c.Registered = 0;
+					registers.c.Registered = 0;
 					for (int i = 0; i < sizeof(registers); i++)
 						if (control.r[i])
 						{
-							registers.r[i] = controlregisters.r[i];
+							if (i < EEPROM_REG_MAX)
+							{
+								if (!registers.c.TorqueEnable)	// can only update is torque not enabled
+								{
+									registers.r[i] = controlregisters.r[i];
+									eeprom_dirty = true;
+								}
+							}
+							else
+							{
+								registers.r[i] = controlregisters.r[i];
+							}
 							control.r[i] = 0;
 						}
 				}
@@ -499,7 +511,7 @@ public:
 		registers.e.FirmwareVersion = 7;
 		registers.e.ID = 1;
 		registers.e.BaudRate = 34;
-		registers.e.ReturnDelayTime = 250;
+		registers.e.ReturnDelayTime = 0;
 		registers.e.CWAngleLimit = 0;
 		registers.e.CCWAngleLimit = 0xFFF;
 		registers.e.TemperatureLimit = 80;
@@ -512,6 +524,12 @@ public:
 		registers.e.MultiTurnOffset = 0;
 		registers.e.ResolutionDivider = 1;
 		registers.e.EepromCRC = CalcCRC(registers.r, sizeof(registers.e)-1);
+
+#ifdef DEBUG
+		// override hacks
+		registers.e.ModelNumber = 29; // fake mx-28 so Dynamixel Wizard works
+		registers.e.BaudRate = 252; // 3000
+#endif
 	}
 	
 	void SetControlDefaults()
@@ -547,6 +565,7 @@ public:
 		for (uint16_t i = 0; i < sizeof(registers.e); i += 2)
 			HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD,addr + i, *(uint16_t *)(registers.r + i));
 		HAL_FLASH_Lock();
+		eeprom_dirty = false;
 	}
 	
 	void ReadEEPROM()
@@ -559,11 +578,57 @@ public:
 			WriteEEPROM();
 		}
 	}
+	
+	uint32_t baudRate()
+	{
+		// some of the baud rates
+		switch (registers.e.BaudRate) 
+		{
+			case 0:		return 2000000;
+			case 1:		return 1000000;
+			case 3:		return 500000;
+			case 4:		return 400000;
+			case 7:		return 250000;
+			case 9:		return 200000;
+			case 15:	return 125000;
+			case 16:	return 115200;
+			case 34:	return 57600;
+			case 103:	return 19200;
+			case 207:	return 9600;
+			case 250:	return 2250000;
+			case 251:	return 2500000;
+			case 252:	return 3000000;
+			default:	return 57600;
+		}
+	}	
+	
+	// Don't update eeprom when locked
+	void CheckEepromLock(uint8_t &addr, uint8_t &len)
+	{
+		if(addr < EEPROM_REG_MAX)
+		{
+			if (registers.c.TorqueEnable)
+			{
+				// Can't update
+				int newLen = len;
+				newLen -= EEPROM_REG_MAX - addr;
+				addr += EEPROM_REG_MAX - addr;
+				if (newLen <= 0)
+					len = 0;
+				else
+					len = (uint8_t)newLen;
+			}
+			else
+			{
+				eeprom_dirty = true;
+			}
+		}
+	}
+
 };
 
 
 // TODO
 // Don't use HAL for serial TX.  There's too big an overhead setting up and handling irrelevant scenarios.
-// Don't update eeprom when locked
 // error handling
 // 
