@@ -48,6 +48,7 @@ Dynamixel::Dynamixel(std::string portName, int baud) : baud(baud), portName(port
     dataErrors = 0;
 	packetBuilt = false;
 	readPositionPacket = NULL;
+	setVelocityPacket = NULL;
 
 	initTimer();
 }

@@ -2,7 +2,7 @@ TEMPLATE = app
 CONFIG += console c++11
 CONFIG -= app_bundle
 CONFIG -= qt
-EMCPATH = /home/frankt/machinekit
+EMCPATH = $$(EMC2_HOME)
 INCLUDEPATH += $$EMCPATH/include
 DEFINES += ULAPI
 DEFINES += "THREAD_FLAVOR_ID=RTAPI_RT_PREEMPT_ID"
