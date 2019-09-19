@@ -1,0 +1,103 @@
+# core HAL config file for simulation
+
+# first load all the RT modules that will be needed
+# kinematics
+loadrt trivkins
+# motion controller, get name and thread periods from ini file
+# trajectory planner
+loadrt tp
+loadrt [EMCMOT]EMCMOT servo_period_nsec=[EMCMOT]SERVO_PERIOD num_joints=[TRAJ]AXES tp=tp kins=trivkins
+# load 6 differentiators (for velocity and accel signals
+loadrt ddt names=ddt_x,ddt_xv,ddt_y,ddt_yv,ddt_z,ddt_zv
+# load additional blocks
+loadrt hypot names=vel_xy,vel_xyz
+loadrt pid count=3 
+
+loadusr -Wn dynamixelcomp /home/frankt/git/dynamixel/dynamixelcomp/dynamixelcomp
+
+# add motion controller functions to servo thread
+addf motion-command-handler servo-thread
+addf motion-controller servo-thread
+# link the differentiator functions into the code
+addf ddt_x servo-thread
+addf ddt_xv servo-thread
+addf ddt_y servo-thread
+addf ddt_yv servo-thread
+addf ddt_z servo-thread
+addf ddt_zv servo-thread
+addf vel_xy servo-thread
+addf vel_xyz servo-thread
+addf pid.0.do-pid-calcs servo-thread
+addf pid.1.do-pid-calcs servo-thread
+
+# create HAL signals for position commands from motion module
+# loop position commands back to motion module feedback
+net Xpos dynamixelcomp.0.position => pid.0.feedback axis.0.motor-pos-fb
+net Xpos-cmd <= axis.0.motor-pos-cmd => pid.0.command
+net Xpos-out pid.0.output => dynamixelcomp.0.velocity
+net Xpos-enable axis.0.amp-enable-out => pid.0.enable dynamixelcomp.0.enable
+
+setp dynamixelcomp.0.scale [AXIS_0]INPUT_SCALE
+setp pid.0.maxoutput [AXIS_0]MAX_OUTPUT
+setp pid.0.Pgain [AXIS_0]PGAIN
+setp pid.0.Igain [AXIS_0]IGAIN
+setp pid.0.Dgain [AXIS_0]DGAIN
+setp pid.0.bias [AXIS_0]BIAS
+setp pid.0.FF0 [AXIS_0]FF0
+setp pid.0.FF1 [AXIS_0]FF1
+setp pid.0.FF2 [AXIS_0]FF2
+# deadband should be just over 1 count
+setp pid.0.deadband [AXIS_0]DEADBAND
+
+
+net Ypos dynamixelcomp.1.position => pid.1.feedback axis.1.motor-pos-fb
+net Ypos-cmd <= axis.1.motor-pos-cmd => pid.1.command
+net Ypos-out pid.1.output => dynamixelcomp.1.velocity
+net Ypos-enable axis.1.amp-enable-out => pid.1.enable dynamixelcomp.1.enable
+
+setp dynamixelcomp.1.scale [AXIS_1]INPUT_SCALE
+setp pid.1.maxoutput [AXIS_1]MAX_OUTPUT
+setp pid.1.Pgain [AXIS_1]PGAIN
+setp pid.1.Igain [AXIS_1]IGAIN
+setp pid.1.Dgain [AXIS_1]DGAIN
+setp pid.1.bias [AXIS_1]BIAS
+setp pid.1.FF0 [AXIS_1]FF0
+setp pid.1.FF1 [AXIS_1]FF1
+setp pid.1.FF2 [AXIS_1]FF2
+# deadband should be just over 1 count
+setp pid.1.deadband [AXIS_1]DEADBAND
+
+
+
+
+net Zpos axis.2.motor-pos-cmd => axis.2.motor-pos-fb ddt_z.in
+net Apos axis.3.motor-pos-cmd => axis.3.motor-pos-fb
+net Bpos axis.4.motor-pos-cmd => axis.4.motor-pos-fb
+net Cpos axis.5.motor-pos-cmd => axis.5.motor-pos-fb
+net Upos axis.6.motor-pos-cmd => axis.6.motor-pos-fb
+net Vpos axis.7.motor-pos-cmd => axis.7.motor-pos-fb
+net Wpos axis.8.motor-pos-cmd => axis.8.motor-pos-fb
+
+# send the position commands thru differentiators to
+# generate velocity and accel signals
+net Zvel ddt_z.out => ddt_zv.in vel_xyz.in0
+net Zacc <= ddt_zv.out
+
+# Cartesian 2- and 3-axis velocities
+net XYvel vel_xy.out => vel_xyz.in1
+net XYZvel <= vel_xyz.out
+
+# estop loopback
+net estop-loop iocontrol.0.user-enable-out iocontrol.0.emc-enable-in
+
+# create signals for tool loading loopback
+net tool-prep-loop iocontrol.0.tool-prepare iocontrol.0.tool-prepared
+net tool-change-loop iocontrol.0.tool-change iocontrol.0.tool-changed
+
+net spindle-fwd motion.spindle-forward
+net spindle-rev motion.spindle-reverse
+#net spindle-speed motion.spindle-speed-out
+
+net lube iocontrol.0.lube
+net flood iocontrol.0.coolant-flood
+net mist iocontrol.0.coolant-mist
