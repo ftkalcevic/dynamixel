@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <signal.h>
+#include <strings.h>
 
 #include "hal.h"
 #include "Dynamixel.h"
@@ -64,8 +65,55 @@ static uint16_t MakeDynamixelVelocity(hal_float_t vel)
 int main(int argc, char *argv[])
 {
     const string moduleName = "dynamixelcomp";
-    const unsigned int device_count = DEVICE_COUNT;
     int retval = -1;
+
+    // read the commandline arguments
+    int baud = 0;
+    string device;
+    vector<int> ids;
+    for ( int i = 1; i < argc; i++ )
+    {
+        string arg(argv[i]);
+        fprintf(stderr,"arg=%s\n", arg.c_str());
+
+        if ( strcasecmp(arg.substr(0,5).c_str(), "baud=") == 0 )
+        {
+            baud = atoi(arg.substr(5).c_str());
+            fprintf(stderr, "%s: baud = %d\n", moduleName.c_str(), baud);
+        }
+        else if ( strcasecmp(arg.substr(0,7).c_str(), "device=") == 0 )
+        {
+            device = arg.substr(7);
+            fprintf(stderr, "%s: device = %s\n", moduleName.c_str(), device.c_str());
+        }
+        else if ( strcasecmp(arg.substr(0,4).c_str(), "ids=") == 0 )
+        {
+            string idList = arg.substr(4);
+            string::size_type last = 0;
+            string::size_type n = 0;
+            while ( n != string::npos )
+            {
+                n = idList.find(',',last);
+                string s;
+                if ( n != string::npos )
+                {
+                    s = idList.substr(last,n-last);
+                    n++;
+                }
+                else
+                {
+                    s = idList.substr(last);
+                }
+                ids.push_back(atoi(s.c_str()));
+                last = n;
+            }
+
+            fprintf(stderr, "%s: %d servos\n", moduleName.c_str(), ids.size());
+            for ( int id = 0; id < ids.size(); id++ )
+                fprintf(stderr, "%s: id%d = %d\n", moduleName.c_str(), id, ids[id] );
+        }
+    }
+    const unsigned int device_count = ids.size();
 
     // All ready to go.
     signal(SIGINT, quit);
@@ -90,40 +138,40 @@ int main(int argc, char *argv[])
     // Create the hal pins
     for (unsigned int i = 0; i < device_count; i++ )
     {
-        int nRet = hal_pin_float_newf( HAL_IN, &(halData->devices[i].velocity), hal_comp_id, "%s.%d.velocity", moduleName.c_str(), i);
+        int nRet = hal_pin_float_newf( HAL_IN, &(halData->devices[i].velocity), hal_comp_id, "%s.%d.velocity", moduleName.c_str(), ids[i]);
         if ( nRet != 0 )
         {
-            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "velocity", i );
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "velocity", ids[i] );
             retval = nRet;
             throw;
         }
         *(halData->devices[i].velocity) = 0;
-        nRet = hal_pin_float_newf( HAL_OUT, &(halData->devices[i].position), hal_comp_id, "%s.%d.position", moduleName.c_str(), i );
+        nRet = hal_pin_float_newf( HAL_OUT, &(halData->devices[i].position), hal_comp_id, "%s.%d.position", moduleName.c_str(), ids[i] );
         if ( nRet != 0 )
         {
-            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "position", i );
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "position", ids[i] );
             retval = nRet;
             throw;
         }
-        nRet = hal_param_float_newf( HAL_RW, &(halData->devices[i].scale), hal_comp_id, "%s.%d.scale", moduleName.c_str(), i );
+        nRet = hal_param_float_newf( HAL_RW, &(halData->devices[i].scale), hal_comp_id, "%s.%d.scale", moduleName.c_str(), ids[i] );
         if ( nRet != 0 )
         {
-            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "scale", i );
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "scale", ids[i] );
             retval = nRet;
             throw;
         }
         halData->devices[i].scale = 1.0;
-        nRet = hal_pin_s32_newf( HAL_OUT, &(halData->devices[i].raw_position), hal_comp_id, "%s.%d.raw-position", moduleName.c_str(), i );
+        nRet = hal_pin_s32_newf( HAL_OUT, &(halData->devices[i].raw_position), hal_comp_id, "%s.%d.raw-position", moduleName.c_str(), ids[i] );
         if ( nRet != 0 )
         {
-            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "raw-position", i );
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "raw-position", ids[i] );
             retval = nRet;
             throw;
         }
-        nRet = hal_pin_bit_newf( HAL_IN, &(halData->devices[i].enable), hal_comp_id, "%s.%d.enable", moduleName.c_str(), i );
+        nRet = hal_pin_bit_newf( HAL_IN, &(halData->devices[i].enable), hal_comp_id, "%s.%d.enable", moduleName.c_str(), ids[i] );
         if ( nRet != 0 )
         {
-            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "enable", i );
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "enable", ids[i] );
             retval = nRet;
             throw;
         }
@@ -170,11 +218,13 @@ int main(int argc, char *argv[])
 
     bRunning = true;
 
-    Dynamixel dmx("/dev/ttyUSB0",3000000);
-    RX28 id2(2);
-    RX28 id3(3);
-    dmx.addDevice(&id2);
-    dmx.addDevice(&id3);
+    Dynamixel dmx(device.c_str(),baud);
+    for ( int i = 0; i < device_count; i++ )
+    {
+        RX28 *rx = new RX28(ids[i]);
+        dmx.addDevice(rx);
+    }
+
     if (!dmx.open())
     {
         fprintf(stderr, "Failed to open port\n");
@@ -182,6 +232,7 @@ int main(int argc, char *argv[])
     }
     dmx.enableTorque();
     dmx.setWheelMode();
+    //dmx.goalAcceleration(254);
     //dmx.enableTorque(true);
 
     time_t old_t = time(NULL);
@@ -243,6 +294,10 @@ int main(int argc, char *argv[])
 /*
 
 TODO
-    - expose error counters
-    - add enable pin on each motor (watch enable pin for changes, and then update)
+   - add other pins, eg LED
+   - parse command line for configuration
+        - baud 3000000
+        - tty device /dev/ttyUSB0
+        - device ids 2,3 (and names 0,1?)
+
 */

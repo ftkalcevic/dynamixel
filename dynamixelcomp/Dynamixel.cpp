@@ -35,6 +35,7 @@ static const uint8_t CW_ANGLE_LIMIT = 6;
 static const uint8_t MOVING_SPEED = 32;
 static const uint8_t PRESENT_POSITION = 36;
 static const uint8_t TORQUE_ENABLE = 24;
+static const uint8_t GOAL_ACCELERATION = 73;
 
 static const uint16_t MAX_PACKET_LEN = 257;
 
@@ -83,6 +84,31 @@ void Dynamixel::enableTorque()
 	{
 		*(data++) = devices[i]->id;
         *(data++) = devices[i]->enable;
+	}
+	Packet[PacketLen - 1] = CalcChecksum(Packet + ID, PacketLen - 3);
+
+	// Send the velocity packet.  There is no reply because we are sending to the broadcast address. 
+	write(Packet, PacketLen);
+
+}
+
+void Dynamixel::goalAcceleration(uint8_t acc)
+{
+	const int PacketLen = 5 + 2 + 2 * (uint8_t)devices.size() + 1;
+	uint8_t Packet[MAX_PACKET_LEN];
+	Packet[H1] = HEADER1;
+	Packet[H2] = HEADER2;
+	Packet[ID] = BROADCAST_ID;
+	Packet[LEN] = PacketLen - 4;
+	Packet[INS] = SYNC_WRITE;
+	Packet[SYNC_WRITE_ADDR] = GOAL_ACCELERATION;
+	Packet[SYNC_WRITE_LEN] = 1;
+
+	uint8_t *data = Packet + SYNC_WRITE_LEN + 1;
+	for (unsigned int i = 0; i < devices.size(); i++)
+	{
+		*(data++) = devices[i]->id;
+        *(data++) = acc;
 	}
 	Packet[PacketLen - 1] = CalcChecksum(Packet + ID, PacketLen - 3);
 

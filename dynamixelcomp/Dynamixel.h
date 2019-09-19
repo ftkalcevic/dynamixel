@@ -50,6 +50,7 @@ public:
 	void readPositions();
 	void setVelocities();
     void enableTorque();
+    void goalAcceleration(uint8_t acc);
 	void setWheelMode();
 	bool open();
 	void close();
