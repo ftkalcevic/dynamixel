@@ -1,0 +1,12 @@
+Output: NC Drill Files
+Type  : NC Drill
+From  : Project [DxlServo.PrjPcb]
+   Generated File[DxlServo.TXT]
+   Generated File[DxlServo.LDP]
+   Generated File[DxlServo.DRR]
+
+
+Files Generated   : 3
+Documents Printed : 0
+
+Finished Output Generation At 10:56:15 AM On 30/03/2019

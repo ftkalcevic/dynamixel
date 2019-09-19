@@ -33,6 +33,8 @@ class Dynamixel
 	void initTimer();
 	int64_t getTimer();
 	bool ProcessReadPositions(uint8_t *buffer, int bytesRead);
+	bool ProcessReadStatus(uint8_t *buffer, int len);
+	void BlockingReadStatus();
 
 	enum EReadPositionsState
 	{
@@ -50,6 +52,7 @@ public:
 	void readPositions();
 	void setVelocities();
     void enableTorque();
+	void ping(int id);
 	void setWheelMode();
 	bool open();
 	void close();

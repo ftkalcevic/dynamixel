@@ -261,3 +261,5 @@ __pycache__/
 *.pyc
 beveljoint/dxl_sdk_win64_v1_02
 /linuxcnc_test/linuxcnc_test
+DxlServo/History
+DxlServo/__Previews
