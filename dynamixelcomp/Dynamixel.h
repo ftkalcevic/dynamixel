@@ -9,8 +9,12 @@ class Dynamixel
 	bool packetBuilt;
 	uint8_t *readPositionPacket;
 	uint8_t *setVelocityPacket;
+	uint8_t *setTorqueLimitPacket;
+	uint8_t *setPositionPacket;
 	uint8_t readPositionPacketLen;
 	uint8_t setVelocityPacketLen;
+	uint8_t setTorqueLimitPacketLen;
+	uint8_t setPositionPacketLen;
 	int baud;
 	std::string portName;
 	HANDLE hPort;
@@ -48,6 +52,7 @@ public:
 	~Dynamixel();
 	void addDevice(Device *device);
 	void readPositions();
+    void Update();
 	void setVelocities();
     void enableTorque();
     void goalAcceleration(uint8_t acc);
