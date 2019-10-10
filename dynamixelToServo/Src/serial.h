@@ -55,6 +55,13 @@ protected:
 
 	bool ReadDataAvailable(void)
 	{
+		uint32_t status = huart.Instance->SR;
+		if (status & (HAL_UART_ERROR_PE | HAL_UART_ERROR_NE | HAL_UART_ERROR_FE | HAL_UART_ERROR_ORE))
+		{
+			uint32_t cndtr = huart.hdmarx->Instance->CNDTR;
+			uint32_t data = huart.Instance->DR;
+		}
+		
 		return ((rx_buffer_size - huart.hdmarx->Instance->CNDTR) != RxTail);							/* Return 0 (FALSE) if the receive buffer is empty */
 	}
 

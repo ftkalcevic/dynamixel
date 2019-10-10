@@ -249,12 +249,21 @@
     <ClInclude Include="Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_crc.h">
       <Filter>Header files\STM32Cube HAL\CRC</Filter>
     </ClInclude>
+    <ClCompile Include="Drivers\CMSIS\DSP_Lib\Source\ControllerFunctions\arm_pid_init_q15.c">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="Drivers\CMSIS\DSP_Lib\Source\ControllerFunctions\arm_pid_reset_q15.c">
+      <Filter>Source files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\serial.h">
       <Filter>Header files</Filter>
     </ClInclude>
     <ClInclude Include="Src\protocol1.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="Drivers\CMSIS\Include\arm_math.h">
       <Filter>Header files</Filter>
     </ClInclude>
   </ItemGroup>
