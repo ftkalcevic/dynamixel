@@ -22,16 +22,20 @@ static void quit(int /*sig*/)
 
 struct DynamixelDevice
 {
+    hal_u32_t mode;                 // 0 = Joint mode, 1 = wheel mode, 2 = multi-turn mode
     hal_float_t input_scale;
     hal_float_t output_scale;
     hal_float_t *velocity_cmd;
     hal_float_t *position_cmd;
     hal_float_t *torque_limit;
     hal_bit_t *enable;
-    hal_s32_t *raw_position_fb;
+    hal_bit_t *led;
+    hal_float_t *raw_position_fb;
     hal_float_t *position_fb;
     hal_float_t *velocity_fb;
     hal_float_t *torque_fb;
+    hal_u32_t cw_limit;
+    hal_u32_t ccw_limit;
 };
 
 struct hal_data_t
@@ -164,7 +168,7 @@ int main(int argc, char *argv[])
             throw;
         }
         halData->devices[i].output_scale = 1.0;
-        nRet = hal_pin_s32_newf( HAL_OUT, &(halData->devices[i].raw_position_fb), hal_comp_id, "%s.%d.raw-position-fb", moduleName.c_str(), ids[i] );
+        nRet = hal_pin_float_newf( HAL_OUT, &(halData->devices[i].raw_position_fb), hal_comp_id, "%s.%d.raw-position-fb", moduleName.c_str(), ids[i] );
         if ( nRet != 0 )
         {
             fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "raw-position-fb", ids[i] );
@@ -199,7 +203,7 @@ int main(int argc, char *argv[])
             retval = nRet;
             throw;
         }
-         nRet = hal_pin_bit_newf( HAL_IN, &(halData->devices[i].enable), hal_comp_id, "%s.%d.enable", moduleName.c_str(), ids[i] );
+        nRet = hal_pin_bit_newf( HAL_IN, &(halData->devices[i].enable), hal_comp_id, "%s.%d.enable", moduleName.c_str(), ids[i] );
         if ( nRet != 0 )
         {
             fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "enable", ids[i] );
@@ -207,6 +211,38 @@ int main(int argc, char *argv[])
             throw;
         }
         *(halData->devices[i].enable) = 0;
+        nRet = hal_pin_bit_newf( HAL_IN, &(halData->devices[i].led), hal_comp_id, "%s.%d.led", moduleName.c_str(), ids[i] );
+        if ( nRet != 0 )
+        {
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "led", ids[i] );
+            retval = nRet;
+            throw;
+        }
+        *(halData->devices[i].led) = 0;
+        nRet = hal_param_u32_newf( HAL_RW, &(halData->devices[i].mode), hal_comp_id, "%s.%d.mode", moduleName.c_str(), ids[i] );
+        if ( nRet != 0 )
+        {
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s'", moduleName.c_str(), "mode");
+            retval = nRet;
+            throw;
+        }
+        halData->devices[i].mode = 0;
+        nRet = hal_param_u32_newf( HAL_RW, &(halData->devices[i].cw_limit), hal_comp_id, "%s.%d.cw-limit", moduleName.c_str(), ids[i] );
+        if ( nRet != 0 )
+        {
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s'", moduleName.c_str(), "cw-limit");
+            retval = nRet;
+            throw;
+        }
+        halData->devices[i].cw_limit = 0;
+        nRet = hal_param_u32_newf( HAL_RW, &(halData->devices[i].ccw_limit), hal_comp_id, "%s.%d.ccw-limit", moduleName.c_str(), ids[i] );
+        if ( nRet != 0 )
+        {
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s'", moduleName.c_str(), "ccw-limit");
+            retval = nRet;
+            throw;
+        }
+        halData->devices[i].ccw_limit = 0;
     }
     int nRet = hal_param_u32_newf( HAL_RW, &(halData->checksum_errors), hal_comp_id, "%s.checksum-errors", moduleName.c_str() );
     if ( nRet != 0 )
@@ -258,8 +294,9 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Failed to open port\n");
         throw;
     }
-    dmx.enableTorque();
-    dmx.setWheelMode();
+
+    //dmx.enableTorque();
+    //dmx.setWheelMode();
     //dmx.goalAcceleration(254);
     //dmx.enableTorque(true);
 
@@ -274,20 +311,14 @@ int main(int argc, char *argv[])
             halData->updates_per_second = loopCount;
             loopCount = 0;
         }
-        bool enableChanged = false;
         for ( unsigned int i = 0; i < dmx.devices.size(); i++ )
         {
-            if ( *(halData->devices[i].enable) != dmx.devices[i]->enable )
-            {
-                dmx.devices[i]->enable = *(halData->devices[i].enable);
-                enableChanged = true;
-            }
+            dmx.devices[i]->SetEnable( *(halData->devices[i].enable) );
+            dmx.devices[i]->mode = (DeviceMode)halData->devices[i].mode;
+            dmx.devices[i]->cwLimit = halData->devices[i].cw_limit;
+            dmx.devices[i]->ccwLimit = halData->devices[i].ccw_limit;
         }
-
-        if ( enableChanged )
-        {
-            dmx.enableTorque();
-        }
+        dmx.Enable();
 
         halData->checksum_errors = dmx.checksumErrors;
         halData->data_errors = dmx.dataErrors;
@@ -307,6 +338,7 @@ int main(int argc, char *argv[])
             dmx.devices[i]->SetVelocity( MakeDynamixelVelocity(*(halData->devices[i].velocity_cmd) / halData->devices[i].input_scale) );
             dmx.devices[i]->SetTorqueLimit( *(halData->devices[i].torque_limit ) );
             dmx.devices[i]->SetPosition( *(halData->devices[i].position_cmd ) );
+            dmx.devices[i]->SetLED( *(halData->devices[i].led ) );
         }
         dmx.Update();
 
@@ -314,8 +346,7 @@ int main(int argc, char *argv[])
     }
 
     for ( unsigned int i = 0; i < dmx.devices.size(); i++ )
-        dmx.devices[i]->enable = false;
-    dmx.enableTorque();
+        dmx.enableTorque( dmx.devices[i], false );
 
     dmx.close();
 

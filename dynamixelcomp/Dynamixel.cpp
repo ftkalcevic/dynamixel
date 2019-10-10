@@ -32,7 +32,10 @@ static const uint8_t SYNC_WRITE = 0x83;
 static const uint8_t BULK_READ = 0x92;
 
 static const uint8_t CW_ANGLE_LIMIT = 6;
+static const uint8_t LED_DEVICE = 25;
+static const uint8_t GOAL_POSITION = 30;
 static const uint8_t MOVING_SPEED = 32;
+static const uint8_t TORQUE_LIMIT = 34;
 static const uint8_t PRESENT_POSITION = 36;
 static const uint8_t TORQUE_ENABLE = 24;
 static const uint8_t GOAL_ACCELERATION = 73;
@@ -52,6 +55,7 @@ Dynamixel::Dynamixel(std::string portName, int baud) : baud(baud), portName(port
 	setVelocityPacket = NULL;
 	setTorqueLimitPacket = NULL;
 	setPositionPacket = NULL;
+	setLEDPacket = NULL;
 
 	initTimer();
 }
@@ -69,9 +73,9 @@ void Dynamixel::addDevice(Device *device)
 	packetBuilt = false;
 }
 
-void Dynamixel::enableTorque()
+void Dynamixel::enableTorque(Device *device, bool enable )
 {
-	const int PacketLen = 5 + 2 + 2 * (uint8_t)devices.size() + 1;
+	const int PacketLen = 5 + 2 + 2 + 1;
 	uint8_t Packet[MAX_PACKET_LEN];
 	Packet[H1] = HEADER1;
 	Packet[H2] = HEADER2;
@@ -82,16 +86,12 @@ void Dynamixel::enableTorque()
 	Packet[SYNC_WRITE_LEN] = 1;
 
 	uint8_t *data = Packet + SYNC_WRITE_LEN + 1;
-	for (unsigned int i = 0; i < devices.size(); i++)
-	{
-		*(data++) = devices[i]->id;
-        *(data++) = devices[i]->enable;
-	}
+    *(data++) = device->id;
+    *(data++) = enable ? 1 : 0;
 	Packet[PacketLen - 1] = CalcChecksum(Packet + ID, PacketLen - 3);
 
-	// Send the velocity packet.  There is no reply because we are sending to the broadcast address. 
+	// Send the packet.  There is no reply because we are sending to the broadcast address. 
 	write(Packet, PacketLen);
-
 }
 
 void Dynamixel::goalAcceleration(uint8_t acc)
@@ -114,14 +114,14 @@ void Dynamixel::goalAcceleration(uint8_t acc)
 	}
 	Packet[PacketLen - 1] = CalcChecksum(Packet + ID, PacketLen - 3);
 
-	// Send the velocity packet.  There is no reply because we are sending to the broadcast address. 
+	// Send the packet.  There is no reply because we are sending to the broadcast address. 
 	write(Packet, PacketLen);
 
 }
 
-void Dynamixel::setWheelMode()
+void Dynamixel::setRotationLimits(uint8_t id, uint16_t cw, uint16_t ccw)
 {
-	const int PacketLen = 5 + 2 + 5 * (uint8_t)devices.size() + 1;
+	const int PacketLen = 5 + 2 + 5 + 1;
 	uint8_t Packet[MAX_PACKET_LEN];
 	Packet[H1] = HEADER1;
 	Packet[H2] = HEADER2;
@@ -132,20 +132,47 @@ void Dynamixel::setWheelMode()
 	Packet[SYNC_WRITE_LEN] = 4;
 
 	uint8_t *data = Packet + SYNC_WRITE_LEN + 1;
-	for (unsigned int i = 0; i < devices.size(); i++)
-	{
-		*(data++) = devices[i]->id;
-		*(data++) = 0;
-		*(data++) = 0;
-		*(data++) = 0;
-		*(data++) = 0;
-	}
+    *(data++) = id;
+    *(data++) = cw & 0xFF;
+    *(data++) = (cw >> 8) & 0xFF;
+    *(data++) = ccw & 0xFF;
+    *(data++) = (ccw >> 8) & 0xFF;
 	Packet[PacketLen - 1] = CalcChecksum(Packet + ID, PacketLen - 3);
 
-	// Send the velocity packet.  There is no reply because we are sending to the broadcast address. 
+	// Send the packet.  There is no reply because we are sending to the broadcast address. 
 	write(Packet, PacketLen);
-
 }
+
+
+void Dynamixel::setMode(Device *device, DeviceMode  mode)
+{
+    if ( mode == Joint )
+    {
+        setRotationLimits( device->id, device->cwLimit, device->ccwLimit );
+    }
+    else if ( mode == Wheel )
+    {
+        setRotationLimits( device->id, 0, 0 );
+    }
+    else if ( mode == MultiTurn )
+    {}
+}
+
+void Dynamixel::Enable()
+{
+	for (unsigned int i = 0; i < devices.size(); i++)
+        if ( devices[i]->enableChanged )
+        {
+            devices[i]->enableChanged = false;
+            if ( devices[i]->enable )
+            {
+                setMode( devices[i], devices[i]->mode );
+                delayus(10);
+            }
+            enableTorque(devices[i], devices[i]->enable );
+        }
+}
+
 
 void Dynamixel::readPositions()
 {
@@ -262,7 +289,7 @@ void Dynamixel::ProcessPosition(uint8_t id, uint8_t *buffer, uint8_t len)
         dataErrors++;    
         return;
     }
-    if ( len >= 0 )
+    if ( len >= 1 )
     {
         uint8_t err = buffer[0];
         //if ( err != 0 )
@@ -287,9 +314,76 @@ void Dynamixel::ProcessPosition(uint8_t id, uint8_t *buffer, uint8_t len)
 
 void Dynamixel::Update()
 {
-    //setTorqueLimits();
+    setTorqueLimits();
     setVelocities();
-    //setPositions();
+    setPositions();
+    setLEDs();
+}
+
+void Dynamixel::setTorqueLimits()
+{
+	if (!packetBuilt)
+		buildPackets();
+
+	uint8_t offset = SYNC_WRITE_LEN+1;
+    uint8_t changes = 0;
+	for (unsigned int i = 0; i < devices.size(); i++)
+	{
+        if ( devices[i]->torqueLimitChanged )
+        {
+            setTorqueLimitPacket[offset + 0] = devices[i]->id;
+            setTorqueLimitPacket[offset + 1] = devices[i]->torque_limit_cmd & 0xFF;	// LSB
+            setTorqueLimitPacket[offset + 2] = (devices[i]->torque_limit_cmd >> 8) & 0xFF;	// MSB
+            devices[i]->torqueLimitChanged = false;
+            offset += 3;
+            changes++;
+        }
+	}
+    if ( changes )
+    {
+        printf("torque limit changes %d\n", changes );
+        setTorqueLimitPacketLen = 5 + 2 + 3 * changes + 1;
+        setTorqueLimitPacket[LEN] = setTorqueLimitPacketLen - 4;
+	    setTorqueLimitPacket[setTorqueLimitPacketLen-1] = CalcChecksum(setTorqueLimitPacket + ID, setTorqueLimitPacketLen - 3);
+
+	    // Send the packet.  There is no reply because we are sending to the broadcast address. 
+	    write(setTorqueLimitPacket, setTorqueLimitPacketLen);
+
+	    // Need to make sure we don't send another packet until this one is sent
+    }
+}
+
+void Dynamixel::setPositions()
+{
+	if (!packetBuilt)
+		buildPackets();
+
+	uint8_t offset = SYNC_WRITE_LEN+1;
+    uint8_t changes = 0;
+	for (unsigned int i = 0; i < devices.size(); i++)
+	{
+        if ( devices[i]->positionChanged )
+        {
+            setPositionPacket[offset + 0] = devices[i]->id;
+            setPositionPacket[offset + 1] = devices[i]->position_cmd & 0xFF;	// LSB
+            setPositionPacket[offset + 2] = (devices[i]->position_cmd >> 8) & 0xFF;	// MSB
+            devices[i]->positionChanged = false;
+            offset += 3;
+            changes++;
+        }
+	}
+    if ( changes )
+    {
+        printf("position changes %d\n", changes );
+        setPositionPacketLen = 5 + 2 + 3 * changes + 1;
+        setPositionPacket[LEN] = setPositionPacketLen - 4;
+	    setPositionPacket[setPositionPacketLen-1] = CalcChecksum(setPositionPacket + ID, setPositionPacketLen - 3);
+
+	    // Send the packet.  There is no reply because we are sending to the broadcast address. 
+	    write(setPositionPacket, setPositionPacketLen);
+
+	    // Need to make sure we don't send another packet until this one is sent
+    }
 }
 
 void Dynamixel::setVelocities()
@@ -303,7 +397,7 @@ void Dynamixel::setVelocities()
 	{
         if ( devices[i]->velocityChanged )
         {
-            // setVelocityPacket[offset + 0] = devices[i]->id
+            setVelocityPacket[offset + 0] = devices[i]->id;
             setVelocityPacket[offset + 1] = devices[i]->velocity_cmd & 0xFF;	// LSB
             setVelocityPacket[offset + 2] = (devices[i]->velocity_cmd >> 8) & 0xFF;	// MSB
             devices[i]->velocityChanged = false;
@@ -313,11 +407,44 @@ void Dynamixel::setVelocities()
 	}
     if ( changes )
     {
+        //printf("velocities changes %d\n", changes );
         setVelocityPacketLen = 5 + 2 + 3 * changes + 1;
+        setVelocityPacket[LEN] = setVelocityPacketLen - 4;
 	    setVelocityPacket[setVelocityPacketLen-1] = CalcChecksum(setVelocityPacket + ID, setVelocityPacketLen - 3);
 
 	    // Send the velocity packet.  There is no reply because we are sending to the broadcast address. 
 	    write(setVelocityPacket, setVelocityPacketLen);
+
+	    // Need to make sure we don't send another packet until this one is sent
+    }
+}
+
+void Dynamixel::setLEDs()
+{
+	if (!packetBuilt)
+		buildPackets();
+
+	uint8_t offset = SYNC_WRITE_LEN+1;
+    uint8_t changes = 0;
+	for (unsigned int i = 0; i < devices.size(); i++)
+	{
+        if ( devices[i]->ledChanged )
+        {
+            setLEDPacket[offset + 0] = devices[i]->id;
+            setLEDPacket[offset + 1] = devices[i]->led ? 1 : 0;
+            devices[i]->ledChanged = false;
+            offset += 2;
+            changes++;
+        }
+	}
+    if ( changes )
+    {
+        setLEDPacketLen = 5 + 2 + 2 * changes + 1;
+        setLEDPacket[LEN] = setLEDPacketLen - 4;
+	    setLEDPacket[setLEDPacketLen-1] = CalcChecksum(setLEDPacket + ID, setLEDPacketLen - 3);
+
+	    // Send the packet.  There is no reply because we are sending to the broadcast address. 
+	    write(setLEDPacket, setLEDPacketLen);
 
 	    // Need to make sure we don't send another packet until this one is sent
     }
@@ -381,7 +508,7 @@ void Dynamixel::buildPackets()
 	setTorqueLimitPacket[ID] = BROADCAST_ID;
 	setTorqueLimitPacket[LEN] = setTorqueLimitPacketLen - 4;
 	setTorqueLimitPacket[INS] = SYNC_WRITE;
-	setTorqueLimitPacket[SYNC_WRITE_ADDR] = MOVING_SPEED;
+	setTorqueLimitPacket[SYNC_WRITE_ADDR] = TORQUE_LIMIT;
 	setTorqueLimitPacket[SYNC_WRITE_LEN] = 2;
 
 	data = setTorqueLimitPacket + SYNC_WRITE_LEN + 1;
@@ -402,7 +529,7 @@ void Dynamixel::buildPackets()
 	setPositionPacket[ID] = BROADCAST_ID;
 	setPositionPacket[LEN] = setPositionPacketLen - 4;
 	setPositionPacket[INS] = SYNC_WRITE;
-	setPositionPacket[SYNC_WRITE_ADDR] = MOVING_SPEED;
+	setPositionPacket[SYNC_WRITE_ADDR] = GOAL_POSITION;
 	setPositionPacket[SYNC_WRITE_LEN] = 2;
 
 	data = setPositionPacket + SYNC_WRITE_LEN + 1;
@@ -411,6 +538,26 @@ void Dynamixel::buildPackets()
 		*(data++) = devices[i]->id;
 		*(data++) = 0;	// LSB
 		*(data++) = 0;	// MSB
+	}
+
+	if (setLEDPacket)
+		delete setLEDPacket;
+
+	setLEDPacketLen = 5 + 2 + 2 * (uint8_t)devices.size() + 1;
+	setLEDPacket = new uint8_t[setLEDPacketLen];
+	setLEDPacket[H1] = HEADER1;
+	setLEDPacket[H2] = HEADER2;
+	setLEDPacket[ID] = BROADCAST_ID;
+	setLEDPacket[LEN] = setLEDPacketLen - 4;
+	setLEDPacket[INS] = SYNC_WRITE;
+	setLEDPacket[SYNC_WRITE_ADDR] = LED_DEVICE;
+	setLEDPacket[SYNC_WRITE_LEN] = 1;
+
+	data = setLEDPacket + SYNC_WRITE_LEN + 1;
+	for (unsigned int i = 0; i < devices.size(); i++)
+	{
+		*(data++) = devices[i]->id;
+		*(data++) = 0;
 	}
 
 	packetBuilt = true;
@@ -700,6 +847,11 @@ int Dynamixel::bytesAvailable()
 
 int Dynamixel::write(uint8_t *buffer, uint8_t len)
 {
+    //char buf[1024];
+    //buf[0] = 0;
+    //for ( int i = 0; i < len; i++ )
+        //sprintf(buf+strlen(buf), "%02X ", buffer[i] );
+    //printf( "%s\n",buf );
 	return ::write(hPort, buffer, len);
 }
 
