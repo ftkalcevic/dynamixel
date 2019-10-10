@@ -50,6 +50,8 @@ Dynamixel::Dynamixel(std::string portName, int baud) : baud(baud), portName(port
 	packetBuilt = false;
 	readPositionPacket = NULL;
 	setVelocityPacket = NULL;
+	setTorqueLimitPacket = NULL;
+	setPositionPacket = NULL;
 
 	initTimer();
 }
@@ -250,21 +252,44 @@ bool Dynamixel::ProcessReadPositions(uint8_t *buffer, int len)
 	return false;
 }
 
-void Dynamixel::ProcessPosition(uint8_t id, uint8_t *buffer, uint8_t /*len*/)
+void Dynamixel::ProcessPosition(uint8_t id, uint8_t *buffer, uint8_t len)
 {
-	// position comes back in a status packet
+	// position, speed, torque comes back in a status packet
 
-	// id
-	uint16_t position = buffer[1] | (buffer[2] << 8);
     Device *dev = devicesById[id];
-    if ( dev )
+    if ( !dev )
     {
+        dataErrors++;    
+        return;
+    }
+    if ( len >= 0 )
+    {
+        uint8_t err = buffer[0];
+        //if ( err != 0 )
+        //    dataErrors++;
+    }
+    if ( len >= 3 )
+    {
+	    uint16_t position = buffer[1] | (buffer[2] << 8);
         dev->UpdatePosition(position);
     }
-    else
+    if ( len >= 5 )
     {
-        dataErrors++;
+	    uint16_t speed = buffer[3] | (buffer[4] << 8);
+        dev->UpdateVelocity(speed);
     }
+    if ( len >= 7 )
+    {
+	    uint16_t torque = buffer[5] | (buffer[6] << 8);
+        dev->UpdateTorque(torque);
+    }
+}
+
+void Dynamixel::Update()
+{
+    //setTorqueLimits();
+    setVelocities();
+    //setPositions();
 }
 
 void Dynamixel::setVelocities()
@@ -273,19 +298,29 @@ void Dynamixel::setVelocities()
 		buildPackets();
 
 	uint8_t offset = SYNC_WRITE_LEN+1;
+    uint8_t changes = 0;
 	for (unsigned int i = 0; i < devices.size(); i++)
 	{
-		// setVelocityPacket[offset + 0] = devices[i]->id
-		setVelocityPacket[offset + 1] = devices[i]->velocity & 0xFF;	// LSB
-		setVelocityPacket[offset + 2] = (devices[i]->velocity >> 8) & 0xFF;	// MSB
-		offset += 3;
+        if ( devices[i]->velocityChanged )
+        {
+            // setVelocityPacket[offset + 0] = devices[i]->id
+            setVelocityPacket[offset + 1] = devices[i]->velocity_cmd & 0xFF;	// LSB
+            setVelocityPacket[offset + 2] = (devices[i]->velocity_cmd >> 8) & 0xFF;	// MSB
+            devices[i]->velocityChanged = false;
+            offset += 3;
+            changes++;
+        }
 	}
-	setVelocityPacket[setVelocityPacketLen-1] = CalcChecksum(setVelocityPacket + ID, setVelocityPacketLen - 3);
+    if ( changes )
+    {
+        setVelocityPacketLen = 5 + 2 + 3 * changes + 1;
+	    setVelocityPacket[setVelocityPacketLen-1] = CalcChecksum(setVelocityPacket + ID, setVelocityPacketLen - 3);
 
-	// Send the velocity packet.  There is no reply because we are sending to the broadcast address. 
-	write(setVelocityPacket, setVelocityPacketLen);
+	    // Send the velocity packet.  There is no reply because we are sending to the broadcast address. 
+	    write(setVelocityPacket, setVelocityPacketLen);
 
-	// Need to make sure we don't send another packet until this one is sent
+	    // Need to make sure we don't send another packet until this one is sent
+    }
 }
 
 void Dynamixel::buildPackets()
@@ -308,7 +343,7 @@ void Dynamixel::buildPackets()
 
 	for (unsigned int i = 0; i < devices.size(); i++)
 	{
-		*(data++) = 2;	// Length of data to read - 2 bytes position
+		*(data++) = 6;	// Length of data to read - 2 bytes position, 2 bytes speed, 2 bytes load
 		*(data++) = devices[i]->id;
 		*(data++) = PRESENT_POSITION;
 		//*(data++) = (i == 0 ? 30 : 36);
@@ -329,6 +364,48 @@ void Dynamixel::buildPackets()
 	setVelocityPacket[SYNC_WRITE_LEN] = 2;
 
 	data = setVelocityPacket + SYNC_WRITE_LEN + 1;
+	for (unsigned int i = 0; i < devices.size(); i++)
+	{
+		*(data++) = devices[i]->id;
+		*(data++) = 0;	// LSB
+		*(data++) = 0;	// MSB
+	}
+
+	if (setTorqueLimitPacket)
+		delete setTorqueLimitPacket;
+
+	setTorqueLimitPacketLen = 5 + 2 + 3 * (uint8_t)devices.size() + 1;
+	setTorqueLimitPacket = new uint8_t[setTorqueLimitPacketLen];
+	setTorqueLimitPacket[H1] = HEADER1;
+	setTorqueLimitPacket[H2] = HEADER2;
+	setTorqueLimitPacket[ID] = BROADCAST_ID;
+	setTorqueLimitPacket[LEN] = setTorqueLimitPacketLen - 4;
+	setTorqueLimitPacket[INS] = SYNC_WRITE;
+	setTorqueLimitPacket[SYNC_WRITE_ADDR] = MOVING_SPEED;
+	setTorqueLimitPacket[SYNC_WRITE_LEN] = 2;
+
+	data = setTorqueLimitPacket + SYNC_WRITE_LEN + 1;
+	for (unsigned int i = 0; i < devices.size(); i++)
+	{
+		*(data++) = devices[i]->id;
+		*(data++) = 0;	// LSB
+		*(data++) = 0;	// MSB
+	}
+
+	if (setPositionPacket)
+		delete setPositionPacket;
+
+	setPositionPacketLen = 5 + 2 + 3 * (uint8_t)devices.size() + 1;
+	setPositionPacket = new uint8_t[setPositionPacketLen];
+	setPositionPacket[H1] = HEADER1;
+	setPositionPacket[H2] = HEADER2;
+	setPositionPacket[ID] = BROADCAST_ID;
+	setPositionPacket[LEN] = setPositionPacketLen - 4;
+	setPositionPacket[INS] = SYNC_WRITE;
+	setPositionPacket[SYNC_WRITE_ADDR] = MOVING_SPEED;
+	setPositionPacket[SYNC_WRITE_LEN] = 2;
+
+	data = setPositionPacket + SYNC_WRITE_LEN + 1;
 	for (unsigned int i = 0; i < devices.size(); i++)
 	{
 		*(data++) = devices[i]->id;

@@ -6,6 +6,9 @@ Device::Device(uint8_t id) : id(id)
 {
 	first = true;
     enable = 0;
+    velocityChanged = false;
+    torqueLimitChanged = false;
+    positionChanged = false;
 }
 
 Device::~Device()
@@ -16,7 +19,7 @@ void Device::UpdatePosition(uint16_t pos)
 {
 	if (first)
 	{
-		position = 0;
+		position_fb = 0;
 		first = false;
 	}
 	else
@@ -34,8 +37,38 @@ void Device::UpdatePosition(uint16_t pos)
 		else
 			delta = delta & 0x0FFF;
 
-		position += delta;
+		position_fb += delta;
 	}
 
 	last_position = pos;
 }
+
+void Device::UpdateVelocity(uint16_t speed)
+{
+    velocity_fb = speed;
+}
+
+void Device::UpdateTorque(uint16_t torque)
+{
+    torque_fb = torque;
+}
+
+void Device::SetVelocity( uint16_t v )
+{
+    velocity_cmd = v;
+    velocityChanged = true;
+}
+
+void Device::SetTorqueLimit( uint16_t t )
+{
+    torque_limit_cmd = t;
+    torqueLimitChanged = true;
+}
+
+void Device::SetPosition( uint16_t p )
+{
+    position_cmd = p;
+    positionChanged = true;
+}
+
+

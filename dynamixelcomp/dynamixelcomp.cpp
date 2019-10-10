@@ -22,11 +22,16 @@ static void quit(int /*sig*/)
 
 struct DynamixelDevice
 {
-    hal_float_t scale;
-    hal_s32_t *raw_position;
-    hal_float_t *position;
-    hal_float_t *velocity;
+    hal_float_t input_scale;
+    hal_float_t output_scale;
+    hal_float_t *velocity_cmd;
+    hal_float_t *position_cmd;
+    hal_float_t *torque_limit;
     hal_bit_t *enable;
+    hal_s32_t *raw_position_fb;
+    hal_float_t *position_fb;
+    hal_float_t *velocity_fb;
+    hal_float_t *torque_fb;
 };
 
 struct hal_data_t
@@ -39,16 +44,6 @@ struct hal_data_t
     DynamixelDevice devices[0];
 } *halData;
 
-
-#define DEVICE_COUNT    2
-
-void update_position(void *, long )
-{
-}
-
-void update_velocity(void *, long )
-{
-}
 
 static uint16_t MakeDynamixelVelocity(hal_float_t vel)
 {
@@ -138,37 +133,73 @@ int main(int argc, char *argv[])
     // Create the hal pins
     for (unsigned int i = 0; i < device_count; i++ )
     {
-        int nRet = hal_pin_float_newf( HAL_IN, &(halData->devices[i].velocity), hal_comp_id, "%s.%d.velocity", moduleName.c_str(), ids[i]);
+        int nRet = hal_pin_float_newf( HAL_IN, &(halData->devices[i].velocity_cmd), hal_comp_id, "%s.%d.velocity-cmd", moduleName.c_str(), ids[i]);
         if ( nRet != 0 )
         {
-            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "velocity", ids[i] );
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "velocity-cmd", ids[i] );
             retval = nRet;
             throw;
         }
-        *(halData->devices[i].velocity) = 0;
-        nRet = hal_pin_float_newf( HAL_OUT, &(halData->devices[i].position), hal_comp_id, "%s.%d.position", moduleName.c_str(), ids[i] );
+        *(halData->devices[i].velocity_cmd) = 0;
+        nRet = hal_pin_float_newf( HAL_OUT, &(halData->devices[i].position_fb), hal_comp_id, "%s.%d.position-fb", moduleName.c_str(), ids[i] );
         if ( nRet != 0 )
         {
-            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "position", ids[i] );
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "position-fb", ids[i] );
             retval = nRet;
             throw;
         }
-        nRet = hal_param_float_newf( HAL_RW, &(halData->devices[i].scale), hal_comp_id, "%s.%d.scale", moduleName.c_str(), ids[i] );
+        nRet = hal_param_float_newf( HAL_RW, &(halData->devices[i].input_scale), hal_comp_id, "%s.%d.input-scale", moduleName.c_str(), ids[i] );
         if ( nRet != 0 )
         {
-            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "scale", ids[i] );
+            fprintf( stderr, "%s: ERROR: hal_param_float_newf failed for param '%s': %d", moduleName.c_str(), "input-scale", ids[i] );
             retval = nRet;
             throw;
         }
-        halData->devices[i].scale = 1.0;
-        nRet = hal_pin_s32_newf( HAL_OUT, &(halData->devices[i].raw_position), hal_comp_id, "%s.%d.raw-position", moduleName.c_str(), ids[i] );
+        halData->devices[i].input_scale = 1.0;
+        nRet = hal_param_float_newf( HAL_RW, &(halData->devices[i].output_scale), hal_comp_id, "%s.%d.output-scale", moduleName.c_str(), ids[i] );
         if ( nRet != 0 )
         {
-            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "raw-position", ids[i] );
+            fprintf( stderr, "%s: ERROR: hal_param_float_newf failed for param '%s': %d", moduleName.c_str(), "output-scale", ids[i] );
             retval = nRet;
             throw;
         }
-        nRet = hal_pin_bit_newf( HAL_IN, &(halData->devices[i].enable), hal_comp_id, "%s.%d.enable", moduleName.c_str(), ids[i] );
+        halData->devices[i].output_scale = 1.0;
+        nRet = hal_pin_s32_newf( HAL_OUT, &(halData->devices[i].raw_position_fb), hal_comp_id, "%s.%d.raw-position-fb", moduleName.c_str(), ids[i] );
+        if ( nRet != 0 )
+        {
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "raw-position-fb", ids[i] );
+            retval = nRet;
+            throw;
+        }
+        nRet = hal_pin_float_newf( HAL_IN, &(halData->devices[i].position_cmd), hal_comp_id, "%s.%d.position-cmd", moduleName.c_str(), ids[i] );
+        if ( nRet != 0 )
+        {
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "position-cmd", ids[i] );
+            retval = nRet;
+            throw;
+        }
+        nRet = hal_pin_float_newf( HAL_IN, &(halData->devices[i].torque_limit), hal_comp_id, "%s.%d.torque-limit", moduleName.c_str(), ids[i] );
+        if ( nRet != 0 )
+        {
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "torque-limit", ids[i] );
+            retval = nRet;
+            throw;
+        }
+        nRet = hal_pin_float_newf( HAL_OUT, &(halData->devices[i].torque_fb), hal_comp_id, "%s.%d.torque-fb", moduleName.c_str(), ids[i] );
+        if ( nRet != 0 )
+        {
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "torque-fb", ids[i] );
+            retval = nRet;
+            throw;
+        }
+        nRet = hal_pin_float_newf( HAL_OUT, &(halData->devices[i].velocity_fb), hal_comp_id, "%s.%d.velocity-fb", moduleName.c_str(), ids[i] );
+        if ( nRet != 0 )
+        {
+            fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "velocity-fb", ids[i] );
+            retval = nRet;
+            throw;
+        }
+         nRet = hal_pin_bit_newf( HAL_IN, &(halData->devices[i].enable), hal_comp_id, "%s.%d.enable", moduleName.c_str(), ids[i] );
         if ( nRet != 0 )
         {
             fprintf( stderr, "%s: ERROR: hal_pin_new failed for pin '%s': %d", moduleName.c_str(), "enable", ids[i] );
@@ -209,9 +240,6 @@ int main(int argc, char *argv[])
         throw;
     }
     halData->updates_per_second = 0;
-
-//    int nRet = hal_export_funct("update-position", update_position, NULL, 1, 0, hal_comp_id);
-//    nRet = hal_export_funct("update-velocity", update_velocity, NULL, 1, 0, hal_comp_id);
 
     // ready
     hal_ready( hal_comp_id );
@@ -268,13 +296,19 @@ int main(int argc, char *argv[])
         dmx.readPositions();
         for ( unsigned int i = 0; i < dmx.devices.size(); i++ )
         {
-            *(halData->devices[i].raw_position) = dmx.devices[i]->position;
-            *(halData->devices[i].position) = dmx.devices[i]->position / halData->devices[i].scale;
+            *(halData->devices[i].raw_position_fb) = dmx.devices[i]->position_fb;
+            *(halData->devices[i].position_fb) = dmx.devices[i]->position_fb / halData->devices[i].output_scale;
+            *(halData->devices[i].velocity_fb) = dmx.devices[i]->velocity_fb;
+            *(halData->devices[i].torque_fb) = dmx.devices[i]->torque_fb;
         }
 
         for ( unsigned int i = 0; i < dmx.devices.size(); i++ )
-            dmx.devices[i]->velocity = MakeDynamixelVelocity(*(halData->devices[i].velocity));
-        dmx.setVelocities();
+        {
+            dmx.devices[i]->SetVelocity( MakeDynamixelVelocity(*(halData->devices[i].velocity_cmd) / halData->devices[i].input_scale) );
+            dmx.devices[i]->SetTorqueLimit( *(halData->devices[i].torque_limit ) );
+            dmx.devices[i]->SetPosition( *(halData->devices[i].position_cmd ) );
+        }
+        dmx.Update();
 
         loopCount++;
     }
