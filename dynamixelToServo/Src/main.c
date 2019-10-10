@@ -45,6 +45,7 @@
 /* USER CODE BEGIN Includes */
 #include "serial.h"
 #include "protocol1.h"
+#include "pid.h"
 
 /* USER CODE END Includes */
 
@@ -78,7 +79,7 @@ DMA_HandleTypeDef hdma_usart1_tx;
 
 /* USER CODE BEGIN PV */
 static Serial< SerialImpl<true, 128, true, 0, false, true, GPIOA_BASE, RS485_DE_Pin> >  serialBus(huart1);
-static Protocol1 bus(serialBus, 4);
+static Protocol1 bus(serialBus);
 SERIAL_IRQHANDLER_IMPL(serialBus, 1);
 const uint8_t emulatedEeprom[1024] __attribute__((section("eeprom"), aligned(1024))) = {0};
 volatile uint16_t analogs[8];
@@ -101,13 +102,51 @@ static void MX_TIM1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+	// restart DMA usart rx
+	bus.StartSerial();
+}
+
+
+enum ControlMode
+{
+	position,
+	torque,
+	velocity
+};
+
+#define MAX_PWM 1023
+ControlMode mode = ControlMode::position;
+PID<5> pidPosition(100,0,0);
+PID<5> pidTorque(100,0,0);
+PID<5> pidCurrent(100,0,0);
+bool reverseMotor = true;
+
+#ifdef DEBUG
+//#define DEBUG_PID
+#endif
+#if defined(DEBUG_PID)
+	#define POSITION_COUNT 5000
+	int16_t positions[POSITION_COUNT], pos = 0;
+	#define LOG_PID(x)		{									\
+								positions[pos++] = x;			\
+								if (pos >= POSITION_COUNT)		\
+									pos = 0;					\
+							}
+#else
+	#define LOG_PID(x)
+#endif
+
 static void SetMotorPWM(uint16_t pwm)
 {
-	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, pwm);
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, pwm);
 }
 
 static void SetMotorDir(bool cw)
 {
+	if (reverseMotor)
+		cw = !cw;
 	HAL_GPIO_WritePin(MOTOR_DIR_GPIO_Port, MOTOR_DIR_Pin, cw ? GPIO_PinState::GPIO_PIN_SET : GPIO_PinState::GPIO_PIN_RESET);
 }
 
@@ -122,21 +161,110 @@ static void UpdateMotor()
 	uint32_t pot = (analogs[4] + analogs[5] + analogs[6] + analogs[7])/4;
 	uint32_t iload = (analogs[0] + analogs[1] + analogs[2] + analogs[3])/4;
 	
+	//printf("pot=%d, iload=%d\n", pot,iload);
 	// put "mode" in free register (eeprom, ram?)
 	// mode - position, torque (i), velocity (pwm)
 	bus.registers.c.PresentPosition = pot;
 	bus.registers.c.PresentLoad = iload;
-	
-	//if ( mode == Current )
-	{
-		if (bus.registers.c.MovingSpeed & 0x400)
-			SetMotorDir(false);
-		else
-			SetMotorDir(true);
-		SetMotorPWM(bus.registers.c.MovingSpeed & 0xff);
-	}
-	
 
+	static bool running = false;
+	if (bus.registers.c.TorqueEnable)
+	{
+		running = true;
+
+		if (mode == ControlMode::position)
+		{
+			int16_t position_error = (int16_t)pot - (int16_t)bus.registers.c.GoalPosition;
+			int16_t pwm = pidPosition.Update(position_error);
+			
+			LOG_PID(position_error);
+			
+			if (pwm < 0)
+				SetMotorDir(false);
+			else
+				SetMotorDir(true);
+			
+			pwm = abs(pwm);
+			
+
+			if (bus.registers.c.TorqueLimit < 0x3FF)
+			{
+				int16_t torque_error = (int16_t)iload - (int16_t)bus.registers.c.TorqueLimit;
+				int16_t torque_pwm = abs(pidTorque.Update(torque_error));
+				
+				if (torque_pwm < pwm)
+					pwm = torque_pwm;
+			}
+			
+			if (pwm > MAX_PWM)
+				pwm = MAX_PWM;
+			SetMotorPWM(pwm);
+		}
+		else if (mode == ControlMode::torque)
+		{
+			int16_t torque_error = (int16_t)iload - (int16_t)bus.registers.c.TorqueLimit;
+			int16_t pwm = pidTorque.Update(torque_error);
+
+			LOG_PID(torque_error);
+			
+			if (bus.registers.c.MovingSpeed & 0x400)
+				SetMotorDir(false);
+			else
+				SetMotorDir(true);
+
+			pwm = abs(pwm);
+			
+			if (pwm > MAX_PWM)
+				pwm = MAX_PWM;
+			SetMotorPWM(pwm);
+		}
+		else if (mode == ControlMode::velocity)
+		{
+			int16_t pwm = bus.registers.c.MovingSpeed & 0x3FF;
+
+			if (bus.registers.c.TorqueLimit < 0x3FF)
+			{
+				int16_t torque_error = (int16_t)iload - (int16_t)bus.registers.c.TorqueLimit;
+				int16_t torque_pwm = abs(pidTorque.Update(torque_error));
+				
+				if (torque_pwm < pwm)
+					pwm = torque_pwm;
+			}
+			
+			LOG_PID(pwm);			
+			
+			if (bus.registers.c.MovingSpeed & 0x400)
+				SetMotorDir(false);
+			else
+				SetMotorDir(true);
+
+			SetMotorPWM(pwm);
+		}
+
+	}
+	else
+	{
+		if (running)
+		{
+			SetMotorPWM(0);
+			
+			#ifdef DEBUG_PID			
+				for (int i = 0; i < POSITION_COUNT; i++)
+				{
+					printf("%d,%d\n", i, positions[pos++]);
+					if (pos >= POSITION_COUNT)
+					{
+						pos = 0;
+					}
+				}
+			#endif
+			
+			running = false;
+		}
+	}
+
+	
+	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, bus.registers.c.LEDStatus ? GPIO_PinState::GPIO_PIN_RESET : GPIO_PinState::GPIO_PIN_SET);
 }
 
 static void MainLoop()
@@ -166,6 +294,14 @@ static void MainLoop()
 		reading_analogs = true;
 	}
 }
+
+static void Init()
+{
+	bus.Start();
+
+	mode = ControlMode::position;
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -203,8 +339,8 @@ int main(void)
   MX_CRC_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
-  bus.Start();
-	
+  Init();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -261,6 +397,9 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+  /**Enables the Clock Security System 
+  */
+  HAL_RCC_EnableCSS();
 }
 
 /**
@@ -353,6 +492,8 @@ static void MX_ADC1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN ADC1_Init 2 */
+  HAL_ADCEx_Calibration_Start(&hadc1);
+		
   hdma_adc1.Instance = DMA1_Channel1;
   hdma_adc1.Init.Direction = DMA_PERIPH_TO_MEMORY;
   hdma_adc1.Init.PeriphInc = DMA_PINC_DISABLE;
@@ -461,9 +602,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 34;
+  htim2.Init.Prescaler = 3;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 100;
+  htim2.Init.Period = 1023;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -489,13 +630,13 @@ static void MX_TIM2_Init(void)
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE BEGIN TIM2_Init 2 */
   SetMotorPWM(0);
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
   /* USER CODE END TIM2_Init 2 */
   HAL_TIM_MspPostInit(&htim2);
 
@@ -595,10 +736,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, BOARD_LED_Pin|MOTOR_DIR_Pin|MOTOR_ENABLE_Pin|RS485_DE_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, MOTOR_DIR_Pin|LED_Pin|RS485_DE_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : BOARD_LED_Pin MOTOR_DIR_Pin MOTOR_ENABLE_Pin RS485_DE_Pin */
-  GPIO_InitStruct.Pin = BOARD_LED_Pin|MOTOR_DIR_Pin|MOTOR_ENABLE_Pin|RS485_DE_Pin;
+  /*Configure GPIO pins : MOTOR_DIR_Pin LED_Pin RS485_DE_Pin */
+  GPIO_InitStruct.Pin = MOTOR_DIR_Pin|LED_Pin|RS485_DE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

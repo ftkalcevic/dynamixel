@@ -7,6 +7,12 @@
 
 #include "serial.h"
 
+extern FLASH_ProcessTypeDef pFlash;
+// addresses of registers
+volatile uint32_t *DWT_CONTROL = (uint32_t *)0xE0001000;
+volatile uint32_t *DWT_CYCCNT = (uint32_t *)0xE0001004; 
+volatile uint32_t *DEMCR = (uint32_t *)0xE000EDFC; 
+
 struct EEpromRegisters
 {
 	uint16_t ModelNumber;			// 0
@@ -127,21 +133,38 @@ class Protocol1
 	uint8_t replyBuffer[255 + 4];	// output buffer
 	uint16_t replyLength;
 	uint8_t errorFlags;
-	
+
+	enum EEPROMWriteState
+	{
+		Init,
+		Erase,
+		WaitForErase,
+		ProgramData
+	};
+	EEPROMWriteState eeprom_write_state;
+	bool eeprom_writing;
+	FLASH_EraseInitTypeDef eeprom_erase;
+	uint32_t eeprom_write_addr;
+	uint16_t *eeprom_write_data;
+	uint32_t eeprom_write_words;
+
 public:
 	Registers registers;			// main set
 	Registers controlregisters;		// holding set for reg_write
 	Registers control;				// dirty flags for reg_write
+	EEpromRegisters eepromWriteBuffer;	// temp buffer to write eeprom async
 	bool eeprom_dirty;
 	
-	Protocol1(SerialBase &serial, uint8_t deviceID)
+	Protocol1(SerialBase &serial)
 		: serial(serial)
-		, deviceId(deviceID)
 	{
 		last_byte_tick = 0;
 		skipMessages = 0;
 		errorFlags = 0;
 		memset(&control, 0, sizeof(control));
+		deviceId = 0;
+		eeprom_writing = false;
+		eeprom_dirty = false;
 	}
 
 	void Start()
@@ -149,6 +172,11 @@ public:
 		ReadEEPROM();
 		SetControlDefaults();
 		state = State::ReadHeader1;
+		StartSerial();
+	}
+	
+	void StartSerial()
+	{
 		serial.Start(baudRate());
 	}
 
@@ -164,14 +192,20 @@ public:
 			// special handling of send reply, which relies on time events, not data
 			if (state == State::SendReply && GetusTick() - messageReceivedTimestamp >= 2 * registers.e.ReturnDelayTime)
 			{
+				//printf("R");
 				serial.SendPacket(replyBuffer, replyLength);
 				state = State::ReadHeader1;
 			}
 			
+//			if (eeprom_dirty || eeprom_writing)
+//				WriteEEPROMAsync();
+			
 			if (serial.ReadDataAvailable())
 			{
+				//extern UART_HandleTypeDef huart1;
 				last_byte_tick = tick;
 				uint8_t c = serial.ReadByte();
+				//printf("%02X ", c);
 				switch (state)
 				{
 					case State::ReadHeader1:
@@ -190,10 +224,18 @@ public:
 						state = State::ReadLength;
 						break;
 					case State::ReadLength:
-						readLen = c; 	// Bytes to read after instruction (params+chksum)
-						chksum += c;
-						bytesRead = 0;
-						state = State::ReadInstruction;
+						if (c < 2)
+						{
+							state = State::ReadHeader1;
+						}
+						else
+						{
+							readLen = c; 	// Bytes to read after instruction (params+chksum)
+							chksum += c;
+							bytesRead = 0;
+							state = State::ReadInstruction;
+						}
+					
 						break;
 					case State::ReadInstruction:
 						readIns = c;
@@ -201,7 +243,7 @@ public:
 						state = State::ReadData;
 						break;
 					case State::ReadData:
-						if (bytesRead == readLen - 2)
+						if (bytesRead == readLen - 2 )
 						{
 							messageReceivedTimestamp = GetusTick();
 							// done.  c is chksum
@@ -223,6 +265,7 @@ public:
 							else if(readId == deviceId || readId == BROADCAST_ID)
 							{
 								// For us.
+								//printf("M");
 								int8_t reply = ProcessMessage(c != chksum);
 								if (reply == REPLY_NONE)
 								{
@@ -341,6 +384,7 @@ public:
 				for (int i = 0; i < readLen; i++)
 					if (params[1 + 3*i + 1] == deviceId)
 					{
+						//printf("B");
 						len = params[1 + 3*i + 0];
 						addr = params[1 + 3*i + 2];
 						// TODO error check len and addr
@@ -376,6 +420,9 @@ public:
 				CheckEepromLock(addr, len);
 				memcpy(registers.r + addr, params + 1, len);
 				// TODO something with updated registers.
+				
+				VerifyRegisters();
+
 				if (reply)
 				{
 					MakeStatusReply(NULL,0);
@@ -392,16 +439,19 @@ public:
 				// TODO error check len and addr
 				
 				// Was this for us?
-				for(int i = 2 ; i < readLen ; i += len)
+				for(int i = 2 ; i < readLen-2 ; i += len+1)
 					if(params[i] == deviceId)
 					{
 						CheckEepromLock(addr, len);
 						memcpy(registers.r + addr, params + i + 1, len);
+						VerifyRegisters();
+						//printf("S0%02X\n", addr);
+
 						if (reply)
-						{
-							MakeStatusReply(NULL,0);
-							return REPLY_NOW;
-						}
+//						{
+//							MakeStatusReply(NULL,0);
+//							return REPLY_NOW;
+//						}
 						break;
 					}
 				// TODO something with updated registers.
@@ -416,6 +466,7 @@ public:
 				memcpy(controlregisters.r + addr, params + 1, len);
 				memset(control.r + addr, 1, len);
 				registers.c.Registered = 1;
+				VerifyRegisters();
 				
 				// TODO something with updated registers.
 				if (reply)
@@ -441,7 +492,7 @@ public:
 						{
 							if (i < EEPROM_REG_MAX)
 							{
-								if (!registers.c.TorqueEnable)	// can only update is torque not enabled
+								if (!registers.c.TorqueEnable)	// can only update if torque not enabled
 								{
 									registers.r[i] = controlregisters.r[i];
 									eeprom_dirty = true;
@@ -493,6 +544,10 @@ public:
 		return REPLY_NONE;
 	}
 	
+	void VerifyRegisters()
+	{
+	}
+	
 	uint8_t CalcCRC(const uint8_t *buf, uint8_t len)
 	{
 		__HAL_CRC_DR_RESET(&hcrc);	// #define __HAL_CRC_DR_RESET(__HANDLE__)            (SET_BIT((__HANDLE__)->Instance->CR,CRC_CR_RESET))
@@ -508,12 +563,12 @@ public:
 	void SetFactoryDefaults()
 	{
 		registers.e.ModelNumber = 29;//0x8000+29;
-		registers.e.FirmwareVersion = 7;
+		registers.e.FirmwareVersion = 36;
 		registers.e.ID = 1;
 		registers.e.BaudRate = 34;
 		registers.e.ReturnDelayTime = 0;
-		registers.e.CWAngleLimit = 0;
-		registers.e.CCWAngleLimit = 0xFFF;
+		registers.e.CWAngleLimit = 400;
+		registers.e.CCWAngleLimit = 260;
 		registers.e.TemperatureLimit = 80;
 		registers.e.MinVoltageLimit = 60;
 		registers.e.MaxVoltageLimit = 160;
@@ -525,11 +580,11 @@ public:
 		registers.e.ResolutionDivider = 1;
 		registers.e.EepromCRC = CalcCRC(registers.r, sizeof(registers.e)-1);
 
-#ifdef DEBUG
-		// override hacks
-		registers.e.ModelNumber = 29; // fake mx-28 so Dynamixel Wizard works
-		registers.e.BaudRate = 252; // 3000
-#endif
+//#ifdef DEBUG
+//		// override hacks
+//		registers.e.ModelNumber = 29; // fake mx-28 so Dynamixel Wizard works
+//		registers.e.BaudRate = 252; // 3M
+//#endif
 	}
 	
 	void SetControlDefaults()
@@ -553,10 +608,21 @@ public:
 		registers.c.Punch = 0;				
 		registers.c.RealtimeTick = 0;		
 		registers.c.GoalAcceleration = 0;	
+		
+		
+		registers.c.TorqueLimit = 50;		
 	}
 	
 	void WriteEEPROM()
 	{
+
+//*DEMCR = *DEMCR | 0x01000000;		// enable the use DWT
+//*DWT_CYCCNT = 0;					// Reset cycle counter
+//*DWT_CONTROL = *DWT_CONTROL | 1 ;	// enable cycle counter
+
+
+		registers.e.EepromCRC = CalcCRC((const uint8_t *)&(registers.e), sizeof(registers.e) - 1);
+		
 		uint32_t addr = (uint32_t)emulatedEeprom;
 		HAL_FLASH_Unlock();
 		
@@ -566,10 +632,105 @@ public:
 			HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD,addr + i, *(uint16_t *)(registers.r + i));
 		HAL_FLASH_Lock();
 		eeprom_dirty = false;
+		
+//// number of cycles stored in count variable
+//int count = *DWT_CYCCNT;
+//		printf("WriteEEPROM=%d\n", count);		
+		
+	}
+	
+	
+	void WriteEEPROMAsync()
+	{
+		*DEMCR |= 0x01000000;	// enable the use DWT
+		*DWT_CYCCNT = 0;		// Reset cycle counter
+		*DWT_CONTROL |= 1 ;		// enable cycle counter
+
+		if (eeprom_writing)
+		{
+			switch (eeprom_write_state)
+			{
+				case EEPROMWriteState::Init:
+					eeprom_write_state = EEPROMWriteState::Erase;
+					break;
+				case EEPROMWriteState::Erase:
+					eeprom_erase.TypeErase = FLASH_TYPEERASE_PAGES;
+					eeprom_erase.PageAddress = (uint32_t)emulatedEeprom;
+					eeprom_erase.NbPages = 1; 
+					HAL_FLASH_Unlock();
+					HAL_FLASHEx_Erase_IT(&eeprom_erase);
+					eeprom_write_state = EEPROMWriteState::WaitForErase;
+					break;
+				case EEPROMWriteState::WaitForErase:
+					if (pFlash.ProcedureOnGoing == FLASH_PROC_NONE)
+					{
+						if (pFlash.ErrorCode != HAL_FLASH_ERROR_NONE)
+						{
+							// Problem, abandon eeprom write.
+							HAL_FLASH_Lock();
+							eeprom_writing = false;
+						}
+						else
+						{
+							eeprom_write_addr = (uint32_t)emulatedEeprom;
+							eeprom_write_data = (uint16_t *)&eepromWriteBuffer;
+							eeprom_write_words = (sizeof(eepromWriteBuffer) + 1) / 2; 	// number of words
+							eeprom_write_state = EEPROMWriteState::ProgramData;
+						}
+					}
+					break;
+				case EEPROMWriteState::ProgramData:
+					if (pFlash.ProcedureOnGoing == FLASH_PROC_NONE)
+					{
+						if (pFlash.ErrorCode != HAL_FLASH_ERROR_NONE)
+						{
+							// Problem, abandon eeprom write.
+							HAL_FLASH_Lock();
+							eeprom_writing = false;
+						}
+						else
+						{
+							if (eeprom_write_words > 0)
+							{
+								HAL_FLASH_Program_IT(FLASH_TYPEPROGRAM_HALFWORD, eeprom_write_addr, *eeprom_write_data);
+								eeprom_write_words--;
+								eeprom_write_addr += 2;
+								eeprom_write_data++;
+							}
+							else
+							{
+								// Done
+								HAL_FLASH_Lock();
+								eeprom_writing = false;
+							}
+						}
+					}
+					break;
+			}
+		}
+		else if (eeprom_dirty)
+		{
+			eeprom_dirty = false;
+			eeprom_writing = true;
+			registers.e.EepromCRC = CalcCRC((const uint8_t *)&(registers.e), sizeof(registers.e) - 1);
+			memcpy(&eepromWriteBuffer, &(registers.e), sizeof(eepromWriteBuffer));
+			eeprom_write_state = EEPROMWriteState::Init;
+		}
+	int count = *DWT_CYCCNT;
+	printf("WriteEEPROMAsync=%d\n", count);			
 	}
 	
 	void ReadEEPROM()
 	{
+//#ifdef DEBUG
+		// override hacks
+		SetFactoryDefaults();
+		registers.e.ModelNumber = 29; // fake mx-28 so Dynamixel Wizard works
+		registers.e.BaudRate = 252; // 3M
+		registers.e.ID = 4;
+		deviceId = registers.e.ID;
+		return;
+//#endif		
 		memcpy(&(registers.e), emulatedEeprom, sizeof(registers.e));
 		uint8_t crc = CalcCRC((const uint8_t *)&(registers.e), sizeof(registers.e) - 1);
 		if (crc != registers.e.EepromCRC)
@@ -577,6 +738,7 @@ public:
 			SetFactoryDefaults();
 			WriteEEPROM();
 		}
+		deviceId = registers.e.ID;
 	}
 	
 	uint32_t baudRate()

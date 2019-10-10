@@ -84,18 +84,16 @@ extern uint16_t GetusTick();
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define MOTOR_PWM_Pin GPIO_PIN_0
-#define MOTOR_PWM_GPIO_Port GPIOA
-#define BOARD_LED_Pin GPIO_PIN_1
-#define BOARD_LED_GPIO_Port GPIOA
-#define MOTOR_DIR_Pin GPIO_PIN_2
+#define MOTOR_DIR_Pin GPIO_PIN_1
 #define MOTOR_DIR_GPIO_Port GPIOA
-#define MOTOR_ENABLE_Pin GPIO_PIN_3
-#define MOTOR_ENABLE_GPIO_Port GPIOA
+#define MOTOR_PWM_Pin GPIO_PIN_2
+#define MOTOR_PWM_GPIO_Port GPIOA
 #define MOTOR_I_Pin GPIO_PIN_4
 #define MOTOR_I_GPIO_Port GPIOA
 #define SERVO_POT_Pin GPIO_PIN_5
 #define SERVO_POT_GPIO_Port GPIOA
+#define LED_Pin GPIO_PIN_6
+#define LED_GPIO_Port GPIOA
 #define RS485_DE_Pin GPIO_PIN_11
 #define RS485_DE_GPIO_Port GPIOA
 /* USER CODE BEGIN Private defines */
