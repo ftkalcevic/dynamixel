@@ -6,7 +6,7 @@
 #include <string.h>
 
 #include "serial.h"
-#include "eeprom_spi_25lc640.h"
+#include "eeprom_spi_25lc020.h"
 
 // addresses of registers
 volatile uint32_t *DWT_CONTROL = (uint32_t *)0xE0001000;
@@ -133,7 +133,7 @@ class Protocol1
 	uint8_t replyBuffer[255 + 4];	// output buffer
 	uint16_t replyLength;
 	uint8_t errorFlags;
-	EepromSPI25lc640 eeprom;
+	EepromSPI25lc020 eeprom;
 
 
 public:

@@ -2,7 +2,7 @@
 
 extern SPI_HandleTypeDef hspi1;
 
-class EepromSPI25lc640
+class EepromSPI25lc020
 {
 	enum EEPROMCmds
 	{
@@ -33,7 +33,7 @@ class EepromSPI25lc640
 	uint8_t receiveBuffer[2];			
 	
 public:
-	EepromSPI25lc640()
+	EepromSPI25lc020()
 	{
 		state = State::Idle;
 	}

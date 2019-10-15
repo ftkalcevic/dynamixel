@@ -275,7 +275,7 @@
     <ClInclude Include="Inc\PID.h">
       <Filter>Header files</Filter>
     </ClInclude>
-    <ClInclude Include="Inc\eeprom_spi_25lc640.h">
+    <ClInclude Include="Inc\eeprom_spi_25lc020.h">
       <Filter>Header files</Filter>
     </ClInclude>
   </ItemGroup>

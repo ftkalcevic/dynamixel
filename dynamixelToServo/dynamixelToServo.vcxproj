@@ -95,7 +95,7 @@
     <ClCompile Include="Drivers\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_flash.c" />
     <ClCompile Include="Drivers\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_flash_ex.c" />
     <ClCompile Include="Drivers\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_gpio.c" />
-    <ClInclude Include="Inc\eeprom_spi_25lc640.h" />
+    <ClInclude Include="Inc\eeprom_spi_25lc020.h" />
     <ClInclude Include="Inc\PID.h" />
     <ClInclude Include="Src\protocol1.h" />
     <ClInclude Include="Src\serial.h" />
