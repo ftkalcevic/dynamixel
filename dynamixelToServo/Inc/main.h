@@ -96,6 +96,8 @@ extern uint16_t GetusTick();
 #define LED_GPIO_Port GPIOA
 #define RS485_DE_Pin GPIO_PIN_11
 #define RS485_DE_GPIO_Port GPIOA
+#define GPIO_SPI1_CS_Pin GPIO_PIN_15
+#define GPIO_SPI1_CS_GPIO_Port GPIOA
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

@@ -6,8 +6,8 @@
 #include <string.h>
 
 #include "serial.h"
+#include "eeprom_spi_25lc640.h"
 
-extern FLASH_ProcessTypeDef pFlash;
 // addresses of registers
 volatile uint32_t *DWT_CONTROL = (uint32_t *)0xE0001000;
 volatile uint32_t *DWT_CYCCNT = (uint32_t *)0xE0001004; 
@@ -133,26 +133,14 @@ class Protocol1
 	uint8_t replyBuffer[255 + 4];	// output buffer
 	uint16_t replyLength;
 	uint8_t errorFlags;
+	EepromSPI25lc640 eeprom;
 
-	enum EEPROMWriteState
-	{
-		Init,
-		Erase,
-		WaitForErase,
-		ProgramData
-	};
-	EEPROMWriteState eeprom_write_state;
-	bool eeprom_writing;
-	FLASH_EraseInitTypeDef eeprom_erase;
-	uint32_t eeprom_write_addr;
-	uint16_t *eeprom_write_data;
-	uint32_t eeprom_write_words;
 
 public:
 	Registers registers;			// main set
 	Registers controlregisters;		// holding set for reg_write
 	Registers control;				// dirty flags for reg_write
-	EEpromRegisters eepromWriteBuffer;	// temp buffer to write eeprom async
+	EEpromRegisters eepromWriteBuffer;
 	bool eeprom_dirty;
 	
 	Protocol1(SerialBase &serial)
@@ -163,7 +151,6 @@ public:
 		errorFlags = 0;
 		memset(&control, 0, sizeof(control));
 		deviceId = 0;
-		eeprom_writing = false;
 		eeprom_dirty = false;
 	}
 
@@ -197,8 +184,9 @@ public:
 				state = State::ReadHeader1;
 			}
 			
-//			if (eeprom_dirty || eeprom_writing)
-//				WriteEEPROMAsync();
+			if (eeprom_dirty)
+				WriteEEPROMAsync();
+			eeprom.Async();
 			
 			if (serial.ReadDataAvailable())
 			{
@@ -615,123 +603,58 @@ public:
 	
 	void WriteEEPROM()
 	{
-
-//*DEMCR = *DEMCR | 0x01000000;		// enable the use DWT
-//*DWT_CYCCNT = 0;					// Reset cycle counter
-//*DWT_CONTROL = *DWT_CONTROL | 1 ;	// enable cycle counter
-
-
 		registers.e.EepromCRC = CalcCRC((const uint8_t *)&(registers.e), sizeof(registers.e) - 1);
-		
-		uint32_t addr = (uint32_t)emulatedEeprom;
-		HAL_FLASH_Unlock();
-		
-		FLASH_PageErase(addr);
-        CLEAR_BIT(FLASH->CR, FLASH_CR_PER);
-		for (uint16_t i = 0; i < sizeof(registers.e); i += 2)
-			HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD,addr + i, *(uint16_t *)(registers.r + i));
-		HAL_FLASH_Lock();
-		eeprom_dirty = false;
-		
-//// number of cycles stored in count variable
-//int count = *DWT_CYCCNT;
-//		printf("WriteEEPROM=%d\n", count);		
-		
+		eeprom.Write( 0, (uint8_t *)&(registers.e), sizeof(registers.e));
+
+////*DEMCR = *DEMCR | 0x01000000;		// enable the use DWT
+////*DWT_CYCCNT = 0;					// Reset cycle counter
+////*DWT_CONTROL = *DWT_CONTROL | 1 ;	// enable cycle counter
+//
+//
+//		registers.e.EepromCRC = CalcCRC((const uint8_t *)&(registers.e), sizeof(registers.e) - 1);
+//		
+//		uint32_t addr = (uint32_t)emulatedEeprom;
+//		HAL_FLASH_Unlock();
+//		
+//		FLASH_PageErase(addr);
+//        CLEAR_BIT(FLASH->CR, FLASH_CR_PER);
+//		for (uint16_t i = 0; i < sizeof(registers.e); i += 2)
+//			HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD,addr + i, *(uint16_t *)(registers.r + i));
+//		HAL_FLASH_Lock();
+//		eeprom_dirty = false;
+//		
+////// number of cycles stored in count variable
+////int count = *DWT_CYCCNT;
+////		printf("WriteEEPROM=%d\n", count);		
+//		
 	}
 	
 	
 	void WriteEEPROMAsync()
 	{
-		*DEMCR |= 0x01000000;	// enable the use DWT
-		*DWT_CYCCNT = 0;		// Reset cycle counter
-		*DWT_CONTROL |= 1 ;		// enable cycle counter
-
-		if (eeprom_writing)
+		if (eeprom_dirty && !eeprom.busy())
 		{
-			switch (eeprom_write_state)
+			registers.e.EepromCRC = CalcCRC((const uint8_t *)&(registers.e), sizeof(registers.e) - 1);
+			memcpy(&eepromWriteBuffer, &(registers.e), sizeof(registers.e));
+			if (eeprom.WriteAsync(0, (uint8_t *)&(eepromWriteBuffer), sizeof(eepromWriteBuffer)))
 			{
-				case EEPROMWriteState::Init:
-					eeprom_write_state = EEPROMWriteState::Erase;
-					break;
-				case EEPROMWriteState::Erase:
-					eeprom_erase.TypeErase = FLASH_TYPEERASE_PAGES;
-					eeprom_erase.PageAddress = (uint32_t)emulatedEeprom;
-					eeprom_erase.NbPages = 1; 
-					HAL_FLASH_Unlock();
-					HAL_FLASHEx_Erase_IT(&eeprom_erase);
-					eeprom_write_state = EEPROMWriteState::WaitForErase;
-					break;
-				case EEPROMWriteState::WaitForErase:
-					if (pFlash.ProcedureOnGoing == FLASH_PROC_NONE)
-					{
-						if (pFlash.ErrorCode != HAL_FLASH_ERROR_NONE)
-						{
-							// Problem, abandon eeprom write.
-							HAL_FLASH_Lock();
-							eeprom_writing = false;
-						}
-						else
-						{
-							eeprom_write_addr = (uint32_t)emulatedEeprom;
-							eeprom_write_data = (uint16_t *)&eepromWriteBuffer;
-							eeprom_write_words = (sizeof(eepromWriteBuffer) + 1) / 2; 	// number of words
-							eeprom_write_state = EEPROMWriteState::ProgramData;
-						}
-					}
-					break;
-				case EEPROMWriteState::ProgramData:
-					if (pFlash.ProcedureOnGoing == FLASH_PROC_NONE)
-					{
-						if (pFlash.ErrorCode != HAL_FLASH_ERROR_NONE)
-						{
-							// Problem, abandon eeprom write.
-							HAL_FLASH_Lock();
-							eeprom_writing = false;
-						}
-						else
-						{
-							if (eeprom_write_words > 0)
-							{
-								HAL_FLASH_Program_IT(FLASH_TYPEPROGRAM_HALFWORD, eeprom_write_addr, *eeprom_write_data);
-								eeprom_write_words--;
-								eeprom_write_addr += 2;
-								eeprom_write_data++;
-							}
-							else
-							{
-								// Done
-								HAL_FLASH_Lock();
-								eeprom_writing = false;
-							}
-						}
-					}
-					break;
+				eeprom_dirty = false;
 			}
 		}
-		else if (eeprom_dirty)
-		{
-			eeprom_dirty = false;
-			eeprom_writing = true;
-			registers.e.EepromCRC = CalcCRC((const uint8_t *)&(registers.e), sizeof(registers.e) - 1);
-			memcpy(&eepromWriteBuffer, &(registers.e), sizeof(eepromWriteBuffer));
-			eeprom_write_state = EEPROMWriteState::Init;
-		}
-	int count = *DWT_CYCCNT;
-	printf("WriteEEPROMAsync=%d\n", count);			
 	}
-	
+
 	void ReadEEPROM()
 	{
-//#ifdef DEBUG
-		// override hacks
-		SetFactoryDefaults();
-		registers.e.ModelNumber = 29; // fake mx-28 so Dynamixel Wizard works
-		registers.e.BaudRate = 252; // 3M
-		registers.e.ID = 4;
-		deviceId = registers.e.ID;
-		return;
-//#endif		
-		memcpy(&(registers.e), emulatedEeprom, sizeof(registers.e));
+////#ifdef DEBUG
+//		// override hacks
+//		SetFactoryDefaults();
+//		registers.e.ModelNumber = 29; // fake mx-28 so Dynamixel Wizard works
+//		registers.e.BaudRate = 252; // 3M
+//		registers.e.ID = 4;
+//		deviceId = registers.e.ID;
+//		return;
+////#endif		
+		eeprom.Read( 0, (uint8_t *)&(registers.e), sizeof(registers.e));
 		uint8_t crc = CalcCRC((const uint8_t *)&(registers.e), sizeof(registers.e) - 1);
 		if (crc != registers.e.EepromCRC)
 		{
