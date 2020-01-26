@@ -374,6 +374,8 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  printf("Starting dynamixelToServo\r\n");
+
   while (1)
   {
     /* USER CODE END WHILE */

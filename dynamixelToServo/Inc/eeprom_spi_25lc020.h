@@ -161,6 +161,7 @@ public:
 				busy = (receiveBuffer[1] & EEPROM_WIP) ? true : false;
 			}
 		}
+		return true;
 	}
 
 	void Read(uint16_t address, uint8_t *buffer, uint16_t len)
