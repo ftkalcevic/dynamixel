@@ -4,6 +4,7 @@
 #include <QtCore/QSharedPointer>
 #include <QtSerialPort/QSerialPort>
 #include "Protocol1.h"
+#include "Device.h"
 
 #define DEFAULT_TIMEOUT	100		// ms
 
@@ -13,6 +14,8 @@ class SerialInterface : public QObject, public Protocol1
 
 	QSharedPointer<QSerialPort> port;
 	QString portName;
+	QMap<int, Device> devices;
+
 
 	void ReadConfig();
 	bool SendAndWait(uint8_t *packet, int packet_len, uint8_t *return_buffer = NULL, int timeout=DEFAULT_TIMEOUT);
@@ -28,4 +31,5 @@ public:
 
 	bool Ping(uint8_t id);
 	bool Read(uint8_t id, uint8_t address, uint8_t len, uint8_t* buffer);
+	QMap<int, Device>& getDevices() { return devices; }
 };

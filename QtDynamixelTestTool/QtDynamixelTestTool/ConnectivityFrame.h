@@ -26,6 +26,7 @@ private:
 	QSharedPointer<ScanDevicesThread> scanThread;
 
 signals:
+	void ScanStart();
 	void ScanChange(int baud, int id);
 	void FoundDevice(int baud, int id, int model);
 

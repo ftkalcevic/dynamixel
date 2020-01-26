@@ -70,44 +70,77 @@ void SerialInterface::ReadConfig()
 	QDomNodeList deviceList = nodeDevices.toElement().elementsByTagName("Device");
 	for (int d = 0; d < deviceList.count(); d++)
 	{
-		QDomNode device = deviceList.at(d);
+		Device device;
+
+		QDomNode xmlDevice = deviceList.at(d);
+		int inheritsModelId = -1;
+		if (xmlDevice.attributes().contains("Inherits"))
+		{
+			inheritsModelId = xmlDevice.attributes().namedItem("Inherits").nodeValue().toInt();
+		}
+		device.setInherits(inheritsModelId);
+
 		// This section contains the data used by devices.  Multiple devices can share the same data.
 		// ControlTableEEPROM
-		QDomNodeList eepromDataList = device.toElement().elementsByTagName("ControlTableEEPROM").at(0).toElement().elementsByTagName("Data");
+		QDomNodeList eepromDataList = xmlDevice.toElement().elementsByTagName("ControlTableEEPROM").at(0).toElement().elementsByTagName("Data");
 		for (int i = 0; i < eepromDataList.count(); i++)
 		{
 			QDomNode node = eepromDataList.at(i);
-			QString address = node.attributes().namedItem("Address").nodeValue();
-			QString size = node.attributes().namedItem("Size").nodeValue();
+			int address = node.attributes().namedItem("Address").nodeValue().toInt();;
+			int size = node.attributes().namedItem("Size").nodeValue().toInt();
 			QString dataname = node.attributes().namedItem("DataName").nodeValue();
 			QString description = node.attributes().namedItem("Description").nodeValue();
-			QString access = node.attributes().namedItem("Access").nodeValue();
-			QString initialvalue = node.attributes().namedItem("InitialValue").nodeValue();
+			bool readOnly = node.attributes().namedItem("ReadOnly").nodeValue() == "true" ? true : false;
 			QString editor = node.attributes().namedItem("Editor").nodeValue();
+
+			DeviceData data(address, size, dataname, description, readOnly, editor);
+			device.addEEPROMData(data);
 		}
 
 		// ControlTableRAM
-		QDomNodeList ramDataList = device.toElement().elementsByTagName("ControlTableRAM").at(0).toElement().elementsByTagName("Data");
+		QDomNodeList ramDataList = xmlDevice.toElement().elementsByTagName("ControlTableRAM").at(0).toElement().elementsByTagName("Data");
 		for (int i = 0; i < ramDataList.count(); i++)
 		{
 			QDomNode node = ramDataList.at(i);
-			QString address = node.attributes().namedItem("Address").nodeValue();
-			QString size = node.attributes().namedItem("Size").nodeValue();
+			int address = node.attributes().namedItem("Address").nodeValue().toInt();;
+			int size = node.attributes().namedItem("Size").nodeValue().toInt();
 			QString dataname = node.attributes().namedItem("DataName").nodeValue();
 			QString description = node.attributes().namedItem("Description").nodeValue();
-			QString access = node.attributes().namedItem("Access").nodeValue();
-			QString initialvalue = node.attributes().namedItem("InitialValue").nodeValue();
+			bool readOnly = node.attributes().namedItem("ReadOnly").nodeValue() == "true" ? true : false;
 			QString editor = node.attributes().namedItem("Editor").nodeValue();
+
+			DeviceData data(address, size, dataname, description, readOnly, editor);
+			device.addRamData(data);
 		}
 
 		// This identifies each device.  A dataset can be used by multiple devices.  We create a different device for each row.
 		// Identifiers
-		QDomNodeList idDataList = device.toElement().elementsByTagName("Identifiers").at(0).toElement().elementsByTagName("Identifier");
+		QDomNodeList idDataList = xmlDevice.toElement().elementsByTagName("Identifiers").at(0).toElement().elementsByTagName("Identifier");
 		for (int i = 0; i < idDataList.count(); i++)
 		{
 			QDomNode node = idDataList.at(i);
-			QString modelNumber = node.attributes().namedItem("ModelNumber").nodeValue();
+			int modelNumber = node.attributes().namedItem("ModelNumber").nodeValue().toInt();
 			QString name = node.attributes().namedItem("Name").nodeValue();
+
+			Device newDevice;
+			newDevice = device;
+			newDevice.setName(name);
+			newDevice.setModelNumber(modelNumber);
+
+			devices.insert(modelNumber, newDevice);
+		}
+	}
+	// Find the devices that inherit, and copy the parent data across.
+	for ( auto d = devices.begin(); d != devices.end(); d++ )
+	{
+		if (d.value().inheritedDeviceNumber >= 0)
+		{
+			// Find the parent and copy the eeprom and ram rows.
+			const Device& parent = devices.value(d.value().inheritedDeviceNumber);
+			for each (const DeviceData & r in parent.eepromData)
+				d.value().addEEPROMData(r);
+			for each (const DeviceData & r in parent.ramData)
+				d.value().addRamData(r);
 		}
 	}
 }

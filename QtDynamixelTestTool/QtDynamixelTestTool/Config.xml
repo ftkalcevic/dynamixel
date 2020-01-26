@@ -10,13 +10,54 @@ xsi:noNamespaceSchemaLocation="Config.xsd">
         <Identifier ModelNumber="29" Name="MX-28T/R/AT/AR"/>
       </Identifiers>
       <ControlTableEEPROM>
-        <Data Address="0" Size="2" DataName="Model Number" Description="Model Number" Access="R" InitialValue="29" Editor="Text"/>
-        <Data Address="2" Size="1" DataName="Firmware Version" Description="Firmware Version" Access="R" InitialValue="" Editor="Text"/>
-        <Data Address="3" Size="1" DataName="ID" Description="DYNAMIXEL ID" Access="RW" InitialValue="1" Editor="Text"/>
-        <Data Address="4" Size="1" DataName="Baud Rate" Description="Communication Speed" Access="RW" InitialValue="34" Editor="Baud"/>
+        <Data Address="0" Size="2" DataName="Model Number" Description="Model Number" ReadOnly="true" Editor="Int"/>
+        <Data Address="2" Size="1" DataName="Firmware Version" Description="Firmware Version" ReadOnly="true" Editor="Int"/>
+        <Data Address="3" Size="1" DataName="ID" Description="DYNAMIXEL ID" Editor="Int"/>
+        <Data Address="4" Size="1" DataName="Baud Rate" Description="Communication Speed" Editor="Baud"/>
+        <Data Address="5" Size="1" DataName="Return Delay Time" Description="Response Delay Time" Editor="Int"/>
+        <Data Address="6" Size="2" DataName="CW Angle Limit" Description="Clockwise Angle Limit" Editor="Int"/>
+        <Data Address="8" Size="2" DataName="CCW Angle Limit" Description="Counter-Clockwise Angle Limit" Editor="Int"/>
+        <Data Address="11" Size="1" DataName="Temperature Limit" Description="Maximum Internal Temperature Limit" Editor="Int"/>
+        <Data Address="12" Size="1" DataName="Min Voltage Limit" Description="Minimum Input Voltage Limit" Editor="Int"/>
+        <Data Address="13" Size="1" DataName="Max Voltage Limit" Description="Maximum Input Voltage Limit" Editor="Int"/>
+        <Data Address="14" Size="2" DataName="Max Torque Maximun" Description="Torque" Editor="Int"/>
+        <Data Address="16" Size="1" DataName="Status Return Level" Description="Select Types of Status Return" Editor="Int"/>
+        <Data Address="17" Size="1" DataName="Alarm LED" Description="LED for Alarm" Editor="Int"/>
+        <Data Address="18" Size="1" DataName="Shutdown" Description="Shutdown Error Information" Editor="Int"/>
+        <Data Address="20" Size="2" DataName="Multi Turn Offset" Description="Adjust Position with Offset" Editor="Int"/>
+        <Data Address="22" Size="1" DataName="Resolution Divider" Description="Divider for Position Resolution" Editor="Int"/>
       </ControlTableEEPROM>
       <ControlTableRAM>
-        <Data Address="24" Size="1" DataName="Torque Enable" Description="Motor Torque On/Off" Access="RW" InitialValue="0" Editor="BooleanOnOff"/>
+        <Data Address="24" Size="1" DataName="Torque Enable" Description="Motor Torque On/Off" Editor="BooleanOnOff"/>
+        <Data Address="25" Size="1" DataName="LED Status" Description="LED On/Off" Editor="Int"/>
+        <Data Address="26" Size="1" DataName="D Gain" Description="Derivative Gain" Editor="Int"/>
+        <Data Address="27" Size="1" DataName="I Gain" Description="Integral Gain" Editor="Int"/>
+        <Data Address="28" Size="1" DataName="P Gain" Description="Proportional Gain" Editor="Int"/>
+        <Data Address="30" Size="2" DataName="Goal Position" Description="Desired Position" Editor="Int"/>
+        <Data Address="32" Size="2" DataName="Moving Speed" Description="Moving Speed(Moving Velocity)" Editor="Int"/>
+        <Data Address="34" Size="2" DataName="Torque Limit" Description="Torque Limit(Goal Torque)" Editor="Int"/>
+        <Data Address="36" Size="2" DataName="Present Position" Description="Present Position" ReadOnly="true" Editor="Int"/>
+        <Data Address="38" Size="2" DataName="Present Speed" Description="Present Speed" ReadOnly="true" Editor="Int"/>
+        <Data Address="40" Size="2" DataName="Present Load" Description="Present Load" ReadOnly="true" Editor="Int"/>
+        <Data Address="42" Size="1" DataName="Present Voltage" Description="Present Voltage" ReadOnly="true" Editor="Int"/>
+        <Data Address="43" Size="1" DataName="Present Temperature" Description="Present Temperature" ReadOnly="true" Editor="Int"/>
+        <Data Address="44" Size="1" DataName="Registered" Description="If Instruction is registered" ReadOnly="true" Editor="Int"/>
+        <Data Address="46" Size="1" DataName="Moving" Description="Movement Status" ReadOnly="true" Editor="Int"/>
+        <Data Address="47" Size="1" DataName="Lock" Description="Locking EEPROM" Editor="Int"/>
+        <Data Address="48" Size="2" DataName="Punch" Description="Minimum Current Threshold" Editor="Int"/>
+        <Data Address="50" Size="2" DataName="Realtime" Description="Tick	Count Time in millisecond" ReadOnly="true" Editor="Int"/>
+        <Data Address="73" Size="1" DataName="Goal Acceleration" Description="Goal Acceleration" Editor="Int"/>
+      </ControlTableRAM>
+    </Device>
+    <Device Inherits="29">
+      <Identifiers>
+        <Identifier ModelNumber="65501" Name="Dxl2Servo"/>
+      </Identifiers>
+      <ControlTableEEPROM>
+      </ControlTableEEPROM>
+      <ControlTableRAM>
+        <Data Address="52" Size="1" DataName="Mode" Description="Position=0,Torque=1,Velocity=2" Editor="Int"/>
+        <Data Address="53" Size="1" DataName="Auto Calibrate" Description="Automatically find the servo range" Editor="Int"/>
       </ControlTableRAM>
     </Device>
   </Devices>

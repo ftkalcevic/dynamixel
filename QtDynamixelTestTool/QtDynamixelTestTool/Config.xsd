@@ -16,7 +16,7 @@
 
   <xs:complexType name="devices">
     <xs:sequence>
-      <xs:element name="Device" type="device"/>
+      <xs:element name="Device" type="device" maxOccurs="unbounded"/>
     </xs:sequence>
   </xs:complexType>
   
@@ -26,8 +26,8 @@
       <xs:element name="ControlTableEEPROM" type="controltableeeprom"/>
       <xs:element name="ControlTableRAM" type="controltableram"/>
     </xs:sequence>
+    <xs:attribute name="Inherits" type="xs:integer" use="optional"/>
   </xs:complexType>
-
 
   <xs:complexType name="identifiers">
     <xs:sequence>
@@ -51,8 +51,7 @@
     <xs:attribute name="Size" type="xs:integer" use="required"/>
     <xs:attribute name="DataName" type="xs:string" use="required"/>
     <xs:attribute name="Description" type="xs:string" use="required"/>
-    <xs:attribute name="Access" type="accesstype" use="required"/>
-    <xs:attribute name="InitialValue" type="xs:string" use="required"/>
+    <xs:attribute name="ReadOnly" type="xs:boolean" use="optional" default="false"/>
     <xs:attribute name="Editor" type="editortype" use="required"/>
   </xs:complexType>
 
@@ -65,7 +64,7 @@
 
   <xs:simpleType name="editortype">
     <xs:restriction base="xs:string">
-      <xs:enumeration value="Text"/>
+      <xs:enumeration value="Int"/>
       <xs:enumeration value="Baud"/>
       <xs:enumeration value="BooleanOnOff"/>
     </xs:restriction>

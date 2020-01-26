@@ -91,6 +91,7 @@
   <ItemGroup>
     <ClCompile Include="Baud.cpp" />
     <ClCompile Include="ConnectivityFrame.cpp" />
+    <ClCompile Include="Device.cpp" />
     <ClCompile Include="DeviceFrame.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Protocol.cpp" />
@@ -115,6 +116,7 @@
     <ClInclude Include="Baud.h" />
     <QtMoc Include="ConnectivityFrame.h" />
     <QtMoc Include="DeviceFrame.h" />
+    <ClInclude Include="Device.h" />
     <ClInclude Include="Protocol.h" />
     <ClInclude Include="Protocol1.h" />
     <QtMoc Include="ScanDevicesThread.h" />

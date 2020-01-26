@@ -16,9 +16,11 @@ QtDynamixelTestTool::QtDynamixelTestTool(QWidget *parent)
 	iface = QSharedPointer<SerialInterface>(new SerialInterface(this));
 	ui.frameConnectivity->InitialiseData(iface);
 
+	connect(ui.frameConnectivity, SIGNAL(ScanStart()), SLOT(onScanStart()));
 	connect(ui.frameConnectivity, SIGNAL(FoundDevice(int, int, int)), SLOT(onFoundDevice(int, int, int)));
-
+	connect(ui.treeDevices, SIGNAL(itemSelectionChanged()), SLOT(onDeviceSelectionChanged()) );
 	readSettings();
+	EnableControls();
 }
 
 void QtDynamixelTestTool::closeEvent(QCloseEvent*)
@@ -74,10 +76,15 @@ void QtDynamixelTestTool::writeSettings()
 }
 
 
+void QtDynamixelTestTool::onScanStart()
+{
+	ui.treeDevices->clear();
+}
+
 void QtDynamixelTestTool::onFoundDevice(int baud, int id, int model)
 {
 	// Find or create baud node
-	QString baudText = QString::number(baud);
+	QString baudText = QString::number(baud) + " bps";
 	QTreeWidgetItem* parent = nullptr;
 	for (int i = 0; i < ui.treeDevices->topLevelItemCount(); i++)
 	{
@@ -96,10 +103,38 @@ void QtDynamixelTestTool::onFoundDevice(int baud, int id, int model)
 
 
 	// Append device
-	QString desc = QString("#%2 %3").arg(id).arg(model);
+	QString modelName = "Unknown";
+	if (iface->getDevices().contains(model))
+	{
+		modelName = iface->getDevices().value(model).name;
+	}
+
+	QString desc = QString("[ID:%1] %2").arg(id).arg(modelName);
 	QTreeWidgetItem* deviceItem = new QTreeWidgetItem(parent, QStringList(desc));
-	//ui.treeDevices->insertTopLevelItem(0, deviceItem);
+	deviceItem->setData(0, Qt::UserRole, model);
 }
+
+
+void QtDynamixelTestTool::onDeviceSelectionChanged()
+{
+	EnableControls();
+
+	if (ui.treeDevices->selectedItems().count() > 0)
+	{
+		QTreeWidgetItem* item = ui.treeDevices->selectedItems().first();
+		ui.frameDevice->InitialiseData(iface,item->data(0,Qt::UserRole).toInt());
+	}
+}
+
+void QtDynamixelTestTool::EnableControls()
+{
+	bool hasSelection = ui.treeDevices->selectedItems().count() != 0;
+	ui.frameConnectivity->setEnabled(!hasSelection);
+	ui.frameConnectivity->setVisible(!hasSelection);
+	ui.frameDevice->setEnabled(hasSelection);
+	ui.frameDevice->setVisible(hasSelection);
+}
+
 
 /*
 

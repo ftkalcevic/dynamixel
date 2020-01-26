@@ -83,6 +83,8 @@ void ConnectivityFrame::onStopScanClicked(void)
 
 void ConnectivityFrame::onScanClicked(void)
 {
+	emit ScanStart();
+
 	// Launch this in a worker thread
 	std::list<int> bauds;
 	for (int i = 0; i < ui.listBauds->count(); i++)

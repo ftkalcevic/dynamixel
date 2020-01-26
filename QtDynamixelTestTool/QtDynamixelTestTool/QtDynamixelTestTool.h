@@ -19,7 +19,10 @@ private:
 	virtual void closeEvent(QCloseEvent*);
 	void writeSettings();
 	void readSettings();
+	void EnableControls();
 
 public slots:
 	void onFoundDevice(int baud, int id, int model);
+	void onScanStart();
+	void onDeviceSelectionChanged();
 };
