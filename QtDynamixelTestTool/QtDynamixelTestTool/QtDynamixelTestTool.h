@@ -17,8 +17,8 @@ private:
 	QSharedPointer<SerialInterface> iface;
 
 	virtual void closeEvent(QCloseEvent*);
-	void writePositionSettings();
-	void readPositionSettings();
+	void writeSettings();
+	void readSettings();
 
 public slots:
 	void onFoundDevice(int baud, int id, int model);

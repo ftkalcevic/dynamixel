@@ -91,6 +91,7 @@
   <ItemGroup>
     <ClCompile Include="Baud.cpp" />
     <ClCompile Include="ConnectivityFrame.cpp" />
+    <ClCompile Include="DeviceFrame.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Protocol.cpp" />
     <ClCompile Include="Protocol1.cpp" />
@@ -104,6 +105,7 @@
   </ItemGroup>
   <ItemGroup>
     <QtUic Include="ConnectivityFrame.ui" />
+    <QtUic Include="DeviceFrame.ui" />
     <QtUic Include="QtDynamixelTestTool.ui" />
   </ItemGroup>
   <ItemGroup>
@@ -112,6 +114,7 @@
   <ItemGroup>
     <ClInclude Include="Baud.h" />
     <QtMoc Include="ConnectivityFrame.h" />
+    <QtMoc Include="DeviceFrame.h" />
     <ClInclude Include="Protocol.h" />
     <ClInclude Include="Protocol1.h" />
     <QtMoc Include="ScanDevicesThread.h" />

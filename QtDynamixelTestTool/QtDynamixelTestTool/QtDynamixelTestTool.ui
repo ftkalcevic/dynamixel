@@ -30,6 +30,44 @@
          <height>0</height>
         </size>
        </property>
+       <property name="styleSheet">
+        <string notr="true">QTreeView::branch:has-siblings:!adjoins-item {
+    border-image: url(vline.png) 0;
+}
+
+QTreeView::branch:has-siblings:adjoins-item {
+    border-image: url(branch-more.png) 0;
+}
+
+QTreeView::branch:!has-children:!has-siblings:adjoins-item {
+    border-image: url(branch-end.png) 0;
+}
+
+QTreeView::branch:has-children:!has-siblings:closed,
+QTreeView::branch:closed:has-children:has-siblings {
+        border-image: none;
+        image: url(branch-closed.png);
+}
+
+QTreeView::branch:open:has-children:!has-siblings,
+QTreeView::branch:open:has-children:has-siblings  {
+        border-image: none;
+        image: url(branch-open.png);
+}
+</string>
+       </property>
+       <property name="rootIsDecorated">
+        <bool>true</bool>
+       </property>
+       <property name="itemsExpandable">
+        <bool>true</bool>
+       </property>
+       <property name="allColumnsShowFocus">
+        <bool>true</bool>
+       </property>
+       <attribute name="headerVisible">
+        <bool>false</bool>
+       </attribute>
        <column>
         <property name="text">
          <string notr="true">1</string>
@@ -46,8 +84,24 @@
        <layout class="QGridLayout" name="gridLayout_3">
         <item row="0" column="0">
          <widget class="ConnectivityFrame" name="frameConnectivity">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
           <property name="styleSheet">
-           <string notr="true">background-colour: rgb(156, 251, 255);</string>
+           <string notr="true"/>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
+          </property>
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="DeviceFrame" name="frameDevice">
+          <property name="enabled">
+           <bool>false</bool>
           </property>
           <property name="frameShape">
            <enum>QFrame::StyledPanel</enum>
@@ -89,6 +143,12 @@
    <class>ConnectivityFrame</class>
    <extends>QFrame</extends>
    <header>connectivityframe.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>DeviceFrame</class>
+   <extends>QFrame</extends>
+   <header>DeviceFrame.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

@@ -21,5 +21,5 @@ public:
 	~ScanDevicesThread();
 
 	virtual void run();
-	void Abort() { abort = true; }
+	void Abort();
 };

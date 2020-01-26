@@ -52,6 +52,9 @@
     <ClCompile Include="ConnectivityFrame.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="DeviceFrame.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="QtDynamixelTestTool.h">
@@ -66,12 +69,18 @@
     <QtMoc Include="ConnectivityFrame.h">
       <Filter>Header Files</Filter>
     </QtMoc>
+    <QtMoc Include="DeviceFrame.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
   </ItemGroup>
   <ItemGroup>
     <QtUic Include="QtDynamixelTestTool.ui">
       <Filter>Form Files</Filter>
     </QtUic>
     <QtUic Include="ConnectivityFrame.ui">
+      <Filter>Form Files</Filter>
+    </QtUic>
+    <QtUic Include="DeviceFrame.ui">
       <Filter>Form Files</Filter>
     </QtUic>
   </ItemGroup>

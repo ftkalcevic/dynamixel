@@ -64,3 +64,9 @@ void ScanDevicesThread::run()
 	iface->ClosePort();
 	qDebug() << "Scan complete";
 }
+
+void ScanDevicesThread::Abort() 
+{ 
+	abort = true; 
+	wait(500); // Block max 500ms for thread to terminate
+}

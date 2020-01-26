@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QWidget>
+#include <QtCore/QSettings>
 #include "ui_ConnectivityFrame.h"
 #include "SerialInterface.h"
 #include "ScanDevicesThread.h"
@@ -14,6 +15,8 @@ public:
 	~ConnectivityFrame();
 
 	void InitialiseData(QSharedPointer<SerialInterface> iface);
+	void writeSettings(QSettings& qsettings);
+	void readSettings(QSettings& qsettings);
 
 private:
 	Ui::Frame ui;

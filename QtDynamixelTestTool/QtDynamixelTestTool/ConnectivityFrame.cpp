@@ -9,6 +9,7 @@ ConnectivityFrame::ConnectivityFrame(QWidget *parent)
 
 ConnectivityFrame::~ConnectivityFrame()
 {
+	onStopScanClicked();
 }
 
 void ConnectivityFrame::InitialiseData(QSharedPointer<SerialInterface> iface)
@@ -67,6 +68,7 @@ void ConnectivityFrame::onConnectClicked(void)
 
 void ConnectivityFrame::onDisconnectClicked(void)
 {
+	onStopScanClicked();
 	iface->ClosePort();
 	EnableControls();
 }
@@ -121,3 +123,54 @@ void ConnectivityFrame::onFoundDevice(int baud, int id, int model)
 {
 	emit FoundDevice(baud, id, model);
 }
+
+void ConnectivityFrame::writeSettings(QSettings& qsettings)
+{
+	// Save baud list
+	qsettings.beginWriteArray("selectedBauds");
+	int index = 0;
+	for (int i = 0; i < ui.listBauds->count(); i++)
+	{
+		QListWidgetItem* item = ui.listBauds->item(i);
+		if (item->checkState() == Qt::Checked)
+		{
+			qsettings.setArrayIndex(index);
+			qsettings.setValue("baud", item->data(Qt::UserRole).toInt());
+			index++;
+		}
+	}
+	qsettings.endArray();
+	qsettings.setValue("port", ui.cboPorts->currentData(Qt::UserRole).toString());
+}
+
+void ConnectivityFrame::readSettings(QSettings& qsettings)
+{
+	// Save baud list
+	int size = qsettings.beginReadArray("selectedBauds");
+	for (int j = 0; j < size; j++)
+	{
+		qsettings.setArrayIndex(j);
+		int baud = qsettings.value("baud").toInt();
+		for (int i = 0; i < ui.listBauds->count(); i++)
+		{
+			QListWidgetItem* item = ui.listBauds->item(i);
+			if ( item->data(Qt::UserRole).toInt() == baud)
+			{
+				item->setCheckState(Qt::Checked);
+				break;
+			}
+		}
+	}
+	qsettings.endArray();
+
+	QString port = qsettings.value("port").toString();
+	for (int i = 0; i < ui.cboPorts->count(); i++)
+	{
+		if (ui.cboPorts->itemData(i, Qt::UserRole).toString() == port)
+		{
+			ui.cboPorts->setCurrentIndex( i );
+			break;
+		}
+	}
+}
+
