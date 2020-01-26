@@ -193,6 +193,9 @@ bool SerialInterface::Read(uint8_t id, uint8_t address, uint8_t len, uint8_t *bu
 
 bool SerialInterface::SendAndWait(uint8_t* packet, int packet_len, uint8_t* return_buffer, int timeout)
 {
+	if (!port->isOpen())
+		return false;
+
 	port->write((const char *)packet, packet_len);
 	while (port->bytesToWrite() > 0)
 	{

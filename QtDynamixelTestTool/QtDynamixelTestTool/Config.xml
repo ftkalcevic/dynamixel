@@ -20,7 +20,7 @@ xsi:noNamespaceSchemaLocation="Config.xsd">
         <Data Address="11" Size="1" DataName="Temperature Limit" Description="Maximum Internal Temperature Limit" Editor="Int"/>
         <Data Address="12" Size="1" DataName="Min Voltage Limit" Description="Minimum Input Voltage Limit" Editor="Int"/>
         <Data Address="13" Size="1" DataName="Max Voltage Limit" Description="Maximum Input Voltage Limit" Editor="Int"/>
-        <Data Address="14" Size="2" DataName="Max Torque Maximun" Description="Torque" Editor="Int"/>
+        <Data Address="14" Size="2" DataName="Max Torque" Description="Maximun Torque" Editor="Int"/>
         <Data Address="16" Size="1" DataName="Status Return Level" Description="Select Types of Status Return" Editor="Int"/>
         <Data Address="17" Size="1" DataName="Alarm LED" Description="LED for Alarm" Editor="Int"/>
         <Data Address="18" Size="1" DataName="Shutdown" Description="Shutdown Error Information" Editor="Int"/>

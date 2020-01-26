@@ -1,7 +1,29 @@
 #include "QtDynamixelTestTool.h"
 #include <QtCore/QDebug>
 #include <QtCore/QSettings>
+#include <QtCore/QMetaType>
 
+class DeviceInfo
+{
+public:
+	DeviceInfo() = default;
+	~DeviceInfo() = default;
+	DeviceInfo(const DeviceInfo&) = default;
+	DeviceInfo& operator=(const DeviceInfo&) = default;
+
+	DeviceInfo(int id, int baud, int modelNumber) : m_id(id), m_baud(baud), m_modelNumber(modelNumber) {}
+
+	int id() const { return m_id; }
+	int baud() const { return m_baud; }
+	int modelNumber() const { return m_modelNumber; }
+
+private:
+	int m_id;
+	int m_baud;
+	int m_modelNumber;
+};
+
+Q_DECLARE_METATYPE(DeviceInfo);
 
 QtDynamixelTestTool::QtDynamixelTestTool(QWidget *parent)
 	: QMainWindow(parent)
@@ -111,7 +133,9 @@ void QtDynamixelTestTool::onFoundDevice(int baud, int id, int model)
 
 	QString desc = QString("[ID:%1] %2").arg(id).arg(modelName);
 	QTreeWidgetItem* deviceItem = new QTreeWidgetItem(parent, QStringList(desc));
-	deviceItem->setData(0, Qt::UserRole, model);
+
+	DeviceInfo info(id, baud, model);
+	deviceItem->setData(0, Qt::UserRole, QVariant::fromValue(info) );
 }
 
 
@@ -122,7 +146,12 @@ void QtDynamixelTestTool::onDeviceSelectionChanged()
 	if (ui.treeDevices->selectedItems().count() > 0)
 	{
 		QTreeWidgetItem* item = ui.treeDevices->selectedItems().first();
-		ui.frameDevice->InitialiseData(iface,item->data(0,Qt::UserRole).toInt());
+		QVariant vInfo = item->data(0, Qt::UserRole);
+		if (vInfo.isValid())
+		{
+			DeviceInfo info = vInfo.value<DeviceInfo>();
+			ui.frameDevice->InitialiseData(iface, info.modelNumber(), info.id(), info.baud());
+		}
 	}
 }
 

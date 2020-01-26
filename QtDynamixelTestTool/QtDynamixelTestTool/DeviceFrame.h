@@ -2,6 +2,7 @@
 
 #include <QFrame>
 #include <QtCore/QSettings>
+#include <QtCore/QTimer>
 #include "ui_DeviceFrame.h"
 #include "SerialInterface.h"
 
@@ -14,9 +15,18 @@ public:
 	~DeviceFrame();
 	void writeSettings(QSettings& qsettings);
 	void readSettings(QSettings& qsettings);
-	void InitialiseData(QSharedPointer<SerialInterface> iface, int model);
+	void InitialiseData(QSharedPointer<SerialInterface> iface, int model, int id, int baudRate);
+
+public slots:
+	void onDataPollTimeout();
 
 private:
 	Ui::DeviceFrame ui;
 	QSharedPointer<SerialInterface> iface;
+	QTimer dataPollTimer;
+	int deviceId;
+	int baud;
+	int modelNumber;
+
+	QString FormatData(QByteArray& buf, int addr, int size);
 };
