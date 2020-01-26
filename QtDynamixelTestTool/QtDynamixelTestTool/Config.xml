@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TestTool
+xmlns="https://www.franksworkshop.com.au/Config.xsd"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:noNamespaceSchemaLocation="Config.xsd">
+
+  <Devices>
+    <Device>
+      <Identifiers>
+        <Identifier ModelNumber="29" Name="MX-28T/R/AT/AR"/>
+      </Identifiers>
+      <ControlTableEEPROM>
+        <Data Address="0" Size="2" DataName="Model Number" Description="Model Number" Access="R" InitialValue="29" Editor="Text"/>
+        <Data Address="2" Size="1" DataName="Firmware Version" Description="Firmware Version" Access="R" InitialValue="" Editor="Text"/>
+        <Data Address="3" Size="1" DataName="ID" Description="DYNAMIXEL ID" Access="RW" InitialValue="1" Editor="Text"/>
+        <Data Address="4" Size="1" DataName="Baud Rate" Description="Communication Speed" Access="RW" InitialValue="34" Editor="Baud"/>
+      </ControlTableEEPROM>
+      <ControlTableRAM>
+        <Data Address="24" Size="1" DataName="Torque Enable" Description="Motor Torque On/Off" Access="RW" InitialValue="0" Editor="BooleanOnOff"/>
+      </ControlTableRAM>
+    </Device>
+  </Devices>
+ 
+</TestTool>
+  

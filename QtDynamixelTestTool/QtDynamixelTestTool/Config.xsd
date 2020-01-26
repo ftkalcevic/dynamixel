@@ -1,0 +1,80 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<xs:schema 
+    targetNamespace="https://www.franksworkshop.com.au/Config.xsd"
+    elementFormDefault="qualified"
+    xmlns="https://www.franksworkshop.com.au/Config.xsd"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+>
+
+  <xs:element name="TestTool">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Devices" type="devices"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="devices">
+    <xs:sequence>
+      <xs:element name="Device" type="device"/>
+    </xs:sequence>
+  </xs:complexType>
+  
+  <xs:complexType name="device">
+    <xs:sequence>
+      <xs:element name="Identifiers" type="identifiers"/>
+      <xs:element name="ControlTableEEPROM" type="controltableeeprom"/>
+      <xs:element name="ControlTableRAM" type="controltableram"/>
+    </xs:sequence>
+  </xs:complexType>
+
+
+  <xs:complexType name="identifiers">
+    <xs:sequence>
+      <xs:element name="Identifier" type="identifier"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="identifier">
+    <xs:attribute name="ModelNumber" type="xs:integer" use="required"/>
+    <xs:attribute name="Name" type="xs:string" use="required"/>
+  </xs:complexType>
+  
+  <xs:complexType name="controltableeeprom">
+    <xs:sequence>
+      <xs:element name="Data" type="data" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="data">
+    <xs:attribute name="Address" type="xs:byte" use="required"/>
+    <xs:attribute name="Size" type="xs:integer" use="required"/>
+    <xs:attribute name="DataName" type="xs:string" use="required"/>
+    <xs:attribute name="Description" type="xs:string" use="required"/>
+    <xs:attribute name="Access" type="accesstype" use="required"/>
+    <xs:attribute name="InitialValue" type="xs:string" use="required"/>
+    <xs:attribute name="Editor" type="editortype" use="required"/>
+  </xs:complexType>
+
+  <xs:simpleType name="accesstype">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="R"/>
+      <xs:enumeration value="RW"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="editortype">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Text"/>
+      <xs:enumeration value="Baud"/>
+      <xs:enumeration value="BooleanOnOff"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="controltableram">
+    <xs:sequence>
+      <xs:element name="Data" type="data" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+</xs:schema>

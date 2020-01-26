@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/QtDynamixelTestTool">
+        <file>Config.xml</file>
+    </qresource>
+</RCC>
