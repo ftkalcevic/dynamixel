@@ -19,6 +19,8 @@ public:
 
 public slots:
 	void onDataPollTimeout();
+	void onSelectionChanged();
+	void onDataChanged(int address, int size, int value);
 
 private:
 	Ui::DeviceFrame ui;
@@ -30,3 +32,5 @@ private:
 
 	QString FormatData(QByteArray& buf, int addr, int size);
 };
+
+void CreateDataRow(int row, QTableWidgetItem& proto, DeviceData& dd);

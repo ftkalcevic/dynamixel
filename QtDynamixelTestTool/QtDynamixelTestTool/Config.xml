@@ -12,8 +12,26 @@ xsi:noNamespaceSchemaLocation="Config.xsd">
       <ControlTableEEPROM>
         <Data Address="0" Size="2" DataName="Model Number" Description="Model Number" ReadOnly="true" Editor="Int"/>
         <Data Address="2" Size="1" DataName="Firmware Version" Description="Firmware Version" ReadOnly="true" Editor="Int"/>
-        <Data Address="3" Size="1" DataName="ID" Description="DYNAMIXEL ID" Editor="Int"/>
-        <Data Address="4" Size="1" DataName="Baud Rate" Description="Communication Speed" Editor="Baud"/>
+        <Data Address="3" Size="1" DataName="ID" Description="DYNAMIXEL ID" Editor="Int">
+          <EditorInt Min="0" Max="252"/>
+        </Data>
+        <Data Address="4" Size="1" DataName="Baud Rate" Description="Communication Speed" Editor="Enum">
+          <EditorEnum>
+            <Enum Id="207" Text="9,600"/>
+            <Enum Id="103" Text="19,200"/>
+            <Enum Id="34" Text="57,600"/>
+            <Enum Id="16" Text="115,200"/>
+            <Enum Id="9" Text="200k"/>
+            <Enum Id="7" Text="250k"/>
+            <Enum Id="4" Text="400k"/>
+            <Enum Id="3" Text="500k"/>
+            <Enum Id="1" Text="1M"/>
+            <Enum Id="0" Text="2M"/>
+            <Enum Id="250" Text="2.25M"/>
+            <Enum Id="251" Text="2.5M"/>
+            <Enum Id="252" Text="3M"/>
+          </EditorEnum>
+        </Data>
         <Data Address="5" Size="1" DataName="Return Delay Time" Description="Response Delay Time" Editor="Int"/>
         <Data Address="6" Size="2" DataName="CW Angle Limit" Description="Clockwise Angle Limit" Editor="Int"/>
         <Data Address="8" Size="2" DataName="CCW Angle Limit" Description="Counter-Clockwise Angle Limit" Editor="Int"/>
@@ -28,7 +46,7 @@ xsi:noNamespaceSchemaLocation="Config.xsd">
         <Data Address="22" Size="1" DataName="Resolution Divider" Description="Divider for Position Resolution" Editor="Int"/>
       </ControlTableEEPROM>
       <ControlTableRAM>
-        <Data Address="24" Size="1" DataName="Torque Enable" Description="Motor Torque On/Off" Editor="BooleanOnOff"/>
+        <Data Address="24" Size="1" DataName="Torque Enable" Description="Motor Torque On/Off" Editor="Boolean"/>
         <Data Address="25" Size="1" DataName="LED Status" Description="LED On/Off" Editor="Int"/>
         <Data Address="26" Size="1" DataName="D Gain" Description="Derivative Gain" Editor="Int"/>
         <Data Address="27" Size="1" DataName="I Gain" Description="Integral Gain" Editor="Int"/>

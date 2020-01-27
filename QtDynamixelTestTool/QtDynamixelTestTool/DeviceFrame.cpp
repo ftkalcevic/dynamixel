@@ -1,4 +1,7 @@
 #include "DeviceFrame.h"
+#include "EditInt.h"
+#include "EditEnum.h"
+#include "EditBoolean.h"
 
 DeviceFrame::DeviceFrame(QWidget *parent)
 	: QFrame(parent)
@@ -14,6 +17,7 @@ DeviceFrame::DeviceFrame(QWidget *parent)
 	dataPollTimer.setSingleShot(true);
 
 	connect(&dataPollTimer, SIGNAL(timeout()), SLOT(onDataPollTimeout()));
+	connect(ui.tableDevice, SIGNAL(itemSelectionChanged()), SLOT(onSelectionChanged()));
 }
 
 DeviceFrame::~DeviceFrame()
@@ -37,6 +41,16 @@ static QTableWidgetItem* CloneNewCell(QTableWidget* tableDevice, int row, int co
 	return item;
 }
 
+void CreateDataRow(QTableWidget *table, int row, QTableWidgetItem& proto, DeviceData& dd)
+{
+	table->setRowCount(row + 1);
+	QTableWidgetItem* item = CloneNewCell(table, row, 0, proto, QString::number(dd.address));
+	item->setTextAlignment(Qt::AlignCenter);
+	item->setData(Qt::UserRole, dd.address);
+	CloneNewCell(table, row, 1, proto, dd.dataname);
+	CloneNewCell(table, row, 2, proto, "")->setBackgroundColor(dd.readOnly ? "whitesmoke" : "white");
+}
+
 void DeviceFrame::InitialiseData(QSharedPointer<SerialInterface> serialIFace, int model, int id, int baudRate)
 {
 	iface = serialIFace;
@@ -54,19 +68,13 @@ void DeviceFrame::InitialiseData(QSharedPointer<SerialInterface> serialIFace, in
 	int row = 0;
 	for each(DeviceData dd in iface->getDevices().find(model).value().eepromData)
 	{
-		ui.tableDevice->setRowCount(row + 1);
-		CloneNewCell(ui.tableDevice, row, 0, proto, QString::number(dd.address))->setTextAlignment(Qt::AlignCenter);
-		CloneNewCell(ui.tableDevice, row, 1, proto, dd.dataname);
-		CloneNewCell(ui.tableDevice, row, 2, proto, "")->setBackgroundColor(dd.readOnly ? "whitesmoke" : "white");
+		CreateDataRow(ui.tableDevice, row, proto, dd);
 		row++;
 	}
 	proto.setBackgroundColor("aliceblue");
 	for each (DeviceData dd in iface->getDevices().find(model).value().ramData)
 	{
-		ui.tableDevice->setRowCount(row + 1);
-		CloneNewCell(ui.tableDevice, row, 0, proto, QString::number(dd.address))->setTextAlignment(Qt::AlignCenter);
-		CloneNewCell(ui.tableDevice, row, 1, proto, dd.dataname);
-		CloneNewCell(ui.tableDevice, row, 2, proto, "")->setBackgroundColor(dd.readOnly ? "whitesmoke" : "white");
+		CreateDataRow(ui.tableDevice, row, proto, dd);
 		row++;
 	}
 	ui.tableDevice->resizeRowsToContents();
@@ -106,3 +114,77 @@ void DeviceFrame::onDataPollTimeout()
 
 	dataPollTimer.start(1000);
 }
+
+
+void DeviceFrame::onSelectionChanged()
+{
+	if (ui.tableDevice->selectedItems().count() > 0)
+	{
+		int row = ui.tableDevice->selectedItems().at(0)->row();
+		QTableWidgetItem* item = ui.tableDevice->item(row,0);
+		int address = item->data(Qt::UserRole).toInt();
+		const Device& device = iface->getDevices().constFind(modelNumber).value();
+
+		QMap<int,DeviceData>::ConstIterator it = device.eepromData.find(address);
+		if (it == device.eepromData.end())
+			it = device.ramData.find(address);
+
+		const DeviceData& dd = it.value();
+		QFrame * frame = nullptr;
+		if (dd.editor == "Int")
+		{
+			// pass in - current value, min, max, name, description
+			frame = new EditInt(this, dd.address, dd.size, ui.tableDevice->item(row, 2)->text().toInt(), dd.min, dd.max, dd.dataname, dd.description, dd.readOnly );
+			connect(frame, SIGNAL(DataChanged(int,int,int)), SLOT(onDataChanged(int,int,int)));
+		}
+		else if (dd.editor == "Enum")
+		{
+			frame = new EditEnum(this, dd.address, dd.size, ui.tableDevice->item(row, 2)->text().toInt(), dd.enums, dd.dataname, dd.description, dd.readOnly);
+			connect(frame, SIGNAL(DataChanged(int, int, int)), SLOT(onDataChanged(int, int, int)));
+		}
+		else if (dd.editor == "Boolean")
+		{
+			frame = new EditBoolean(this, dd.address, dd.size, ui.tableDevice->item(row, 2)->text().toInt(), dd.dataname, dd.description, dd.readOnly);
+			connect(frame, SIGNAL(DataChanged(int, int, int)), SLOT(onDataChanged(int, int, int)));
+		}
+
+		if ( frame != nullptr )
+		{
+			if (ui.frame->layout() != nullptr)
+			{
+				QLayoutItem* item;
+				while ((item = ui.frame->layout()->takeAt(0)) != nullptr)
+				{
+					QWidget* w = item->widget();
+					w->hide();
+					delete w;
+				}
+				delete ui.frame->layout();
+			}
+
+			QGridLayout *layout = new QGridLayout(ui.frame);
+			layout->addWidget(frame);
+			ui.frame->setLayout(layout);
+		}
+		// BooleanOnOff
+		// Baud - enum
+	}
+	else
+	{
+		// Show device info
+	}
+
+}
+
+
+void DeviceFrame::onDataChanged(int address, int size, int value)
+{
+	uint16_t uvalue = value;
+
+	uint8_t buffer[20];
+	buffer[0] = uvalue & 0xFF;
+	buffer[1] = (uvalue>>8) & 0xFF;
+
+	iface->Write(deviceId, address, size, buffer);
+}
+

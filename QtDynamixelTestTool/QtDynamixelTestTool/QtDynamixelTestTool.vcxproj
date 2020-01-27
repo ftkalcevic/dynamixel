@@ -78,7 +78,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <DebugInformationFormat />
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
     </ClCompile>
@@ -93,6 +93,9 @@
     <ClCompile Include="ConnectivityFrame.cpp" />
     <ClCompile Include="Device.cpp" />
     <ClCompile Include="DeviceFrame.cpp" />
+    <ClCompile Include="EditBoolean.cpp" />
+    <ClCompile Include="EditEnum.cpp" />
+    <ClCompile Include="EditInt.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Protocol.cpp" />
     <ClCompile Include="Protocol1.cpp" />
@@ -107,6 +110,9 @@
   <ItemGroup>
     <QtUic Include="ConnectivityFrame.ui" />
     <QtUic Include="DeviceFrame.ui" />
+    <QtUic Include="EditBoolean.ui" />
+    <QtUic Include="EditEnum.ui" />
+    <QtUic Include="EditInt.ui" />
     <QtUic Include="QtDynamixelTestTool.ui" />
   </ItemGroup>
   <ItemGroup>
@@ -117,6 +123,9 @@
     <QtMoc Include="ConnectivityFrame.h" />
     <QtMoc Include="DeviceFrame.h" />
     <ClInclude Include="Device.h" />
+    <QtMoc Include="EditInt.h" />
+    <QtMoc Include="EditEnum.h" />
+    <QtMoc Include="EditBoolean.h" />
     <ClInclude Include="Protocol.h" />
     <ClInclude Include="Protocol1.h" />
     <QtMoc Include="ScanDevicesThread.h" />

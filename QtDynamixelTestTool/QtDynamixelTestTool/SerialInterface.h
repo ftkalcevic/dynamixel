@@ -31,5 +31,6 @@ public:
 
 	bool Ping(uint8_t id);
 	bool Read(uint8_t id, uint8_t address, uint8_t len, uint8_t* buffer);
+	bool Write(uint8_t id, uint8_t address, uint8_t len, uint8_t* buffer);
 	QMap<int, Device>& getDevices() { return devices; }
 };

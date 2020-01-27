@@ -2,6 +2,14 @@
 #include <QtCore/QMap>
 
 
+class EnumData
+{
+public:
+	int id;
+	QString text;
+	EnumData(int id, QString text) : id(id), text(text) {}
+};
+
 class DeviceData
 {
 public:
@@ -11,7 +19,8 @@ public:
 	QString description;
 	bool readOnly;
 	QString editor;
-
+	int min, max;
+	QList<EnumData> enums;
 
 	DeviceData(int address, int size, QString dataname, QString description, bool readOnly, QString editor)
 		: address(address)
@@ -20,7 +29,14 @@ public:
 		, description(description)
 		, readOnly(readOnly)
 		, editor(editor)
+		, min(-1)
+		, max(-1)
 	{
+	}
+	
+	void AddEnum(int id, QString text)
+	{
+		enums.append(EnumData(id, text));
 	}
 };
 

@@ -47,6 +47,10 @@
   </xs:complexType>
 
   <xs:complexType name="data">
+    <xs:choice maxOccurs="1" minOccurs="0">
+      <xs:element name="EditorInt" type="EditorInt"/>
+      <xs:element name="EditorEnum" type="EditorEnum"/>
+    </xs:choice>
     <xs:attribute name="Address" type="xs:byte" use="required"/>
     <xs:attribute name="Size" type="xs:integer" use="required"/>
     <xs:attribute name="DataName" type="xs:string" use="required"/>
@@ -65,8 +69,8 @@
   <xs:simpleType name="editortype">
     <xs:restriction base="xs:string">
       <xs:enumeration value="Int"/>
-      <xs:enumeration value="Baud"/>
-      <xs:enumeration value="BooleanOnOff"/>
+      <xs:enumeration value="Enum"/>
+      <xs:enumeration value="Boolean"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -75,5 +79,22 @@
       <xs:element name="Data" type="data" minOccurs="0" maxOccurs="unbounded"/>
     </xs:sequence>
   </xs:complexType>
+
+  <xs:complexType name="EditorInt">
+    <xs:attribute name="Min" type="xs:integer" use="required"/>
+    <xs:attribute name="Max" type="xs:integer" use="required"/>
+  </xs:complexType>
+  
+  <xs:complexType name="EditorEnum">
+    <xs:sequence>
+      <xs:element name="Enum" type="Enum" minOccurs="1" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  
+  <xs:complexType name="Enum">
+    <xs:attribute name="Id" type="xs:integer" use="required"/>
+    <xs:attribute name="Text" type="xs:string" use="required"/>
+  </xs:complexType>
+
 
 </xs:schema>

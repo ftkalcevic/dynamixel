@@ -58,6 +58,15 @@
     <ClCompile Include="Device.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="EditInt.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="EditEnum.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="EditBoolean.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="QtDynamixelTestTool.h">
@@ -75,6 +84,15 @@
     <QtMoc Include="DeviceFrame.h">
       <Filter>Header Files</Filter>
     </QtMoc>
+    <QtMoc Include="EditInt.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="EditEnum.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="EditBoolean.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
   </ItemGroup>
   <ItemGroup>
     <QtUic Include="QtDynamixelTestTool.ui">
@@ -84,6 +102,15 @@
       <Filter>Form Files</Filter>
     </QtUic>
     <QtUic Include="DeviceFrame.ui">
+      <Filter>Form Files</Filter>
+    </QtUic>
+    <QtUic Include="EditInt.ui">
+      <Filter>Form Files</Filter>
+    </QtUic>
+    <QtUic Include="EditEnum.ui">
+      <Filter>Form Files</Filter>
+    </QtUic>
+    <QtUic Include="EditBoolean.ui">
       <Filter>Form Files</Filter>
     </QtUic>
   </ItemGroup>

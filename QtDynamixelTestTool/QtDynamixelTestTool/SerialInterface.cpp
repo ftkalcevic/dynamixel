@@ -50,6 +50,39 @@ void SerialInterface::setBaud(int baudRate)
 		port->setBaudRate(baudRate);
 }
 
+DeviceData ReadDeviceData(QDomNode& node)
+{
+	int address = node.attributes().namedItem("Address").nodeValue().toInt();;
+	int size = node.attributes().namedItem("Size").nodeValue().toInt();
+	QString dataname = node.attributes().namedItem("DataName").nodeValue();
+	QString description = node.attributes().namedItem("Description").nodeValue();
+	bool readOnly = node.attributes().namedItem("ReadOnly").nodeValue() == "true" ? true : false;
+	QString editor = node.attributes().namedItem("Editor").nodeValue();
+	DeviceData data(address, size, dataname, description, readOnly, editor);
+
+	QDomNode child = node.firstChild();
+	if (child.nodeName() == "EditorInt")
+	{
+		if (child.attributes().contains("Min"))
+			data.min = child.attributes().namedItem("Min").nodeValue().toInt();
+		if (child.attributes().contains("Max"))
+			data.max = child.attributes().namedItem("Max").nodeValue().toInt();
+	}
+	else if (child.nodeName() == "EditorEnum")
+	{
+		QDomNode enumNode = child.firstChildElement();
+		while (!enumNode.isNull())
+		{
+			int id = enumNode.attributes().namedItem("Id").nodeValue().toInt();
+			QString text = enumNode.attributes().namedItem("Text").nodeValue();
+			data.AddEnum(id, text);
+			enumNode = enumNode.nextSiblingElement();
+		}
+	}
+
+	return data;
+}
+
 
 void SerialInterface::ReadConfig()
 {
@@ -86,15 +119,7 @@ void SerialInterface::ReadConfig()
 		for (int i = 0; i < eepromDataList.count(); i++)
 		{
 			QDomNode node = eepromDataList.at(i);
-			int address = node.attributes().namedItem("Address").nodeValue().toInt();;
-			int size = node.attributes().namedItem("Size").nodeValue().toInt();
-			QString dataname = node.attributes().namedItem("DataName").nodeValue();
-			QString description = node.attributes().namedItem("Description").nodeValue();
-			bool readOnly = node.attributes().namedItem("ReadOnly").nodeValue() == "true" ? true : false;
-			QString editor = node.attributes().namedItem("Editor").nodeValue();
-
-			DeviceData data(address, size, dataname, description, readOnly, editor);
-			device.addEEPROMData(data);
+			device.addEEPROMData(ReadDeviceData(node));
 		}
 
 		// ControlTableRAM
@@ -102,15 +127,7 @@ void SerialInterface::ReadConfig()
 		for (int i = 0; i < ramDataList.count(); i++)
 		{
 			QDomNode node = ramDataList.at(i);
-			int address = node.attributes().namedItem("Address").nodeValue().toInt();;
-			int size = node.attributes().namedItem("Size").nodeValue().toInt();
-			QString dataname = node.attributes().namedItem("DataName").nodeValue();
-			QString description = node.attributes().namedItem("Description").nodeValue();
-			bool readOnly = node.attributes().namedItem("ReadOnly").nodeValue() == "true" ? true : false;
-			QString editor = node.attributes().namedItem("Editor").nodeValue();
-
-			DeviceData data(address, size, dataname, description, readOnly, editor);
-			device.addRamData(data);
+			device.addRamData(ReadDeviceData(node));
 		}
 
 		// This identifies each device.  A dataset can be used by multiple devices.  We create a different device for each row.
@@ -167,6 +184,7 @@ bool ValidChecksum(uint8_t* packet, int packet_len)
 
 #define INS_PING 0x01
 #define INS_READ 0x02
+#define INS_WRITE 0x03
 
 #define MAX_PACKET	(0xFF+4)	// len + (header1,header2,id,chksum)
 
@@ -190,6 +208,21 @@ bool SerialInterface::Read(uint8_t id, uint8_t address, uint8_t len, uint8_t *bu
 	return false;
 }
 
+bool SerialInterface::Write(uint8_t id, uint8_t address, uint8_t len, uint8_t* buffer)
+{
+	assert(len < (255 - 3));
+	uint8_t packet[255+4] = { 0xFF, 0xFF, id, len+3, INS_WRITE, address };
+	for (int i = 0; i < len; i++)
+		packet[6 + i] = buffer[i];
+	int packet_len = 6 + len + 1;
+	UpdateChecksum(packet, packet_len);
+
+	if (SendAndWait(packet, packet_len, buffer))
+	{
+		return true;
+	}
+	return false;
+}
 
 bool SerialInterface::SendAndWait(uint8_t* packet, int packet_len, uint8_t* return_buffer, int timeout)
 {
