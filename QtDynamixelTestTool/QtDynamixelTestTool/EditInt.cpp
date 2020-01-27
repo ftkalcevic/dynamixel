@@ -7,7 +7,7 @@ EditInt::EditInt(QWidget *parent, int address, int size, int value, int min, int
 	ui.setupUi(this);
 	ui.groupBox->setTitle(name);
 	ui.label->setText(desc);
-	ui.pushButton->setEnabled(!readOnly);
+	ui.pushButton->setVisible(!readOnly);
 	ui.spinBox->setReadOnly(readOnly);
 	if ( min >= 0 )
 		ui.spinBox->setMinimum(min);
@@ -19,7 +19,7 @@ EditInt::EditInt(QWidget *parent, int address, int size, int value, int min, int
 		ui.spinBox->setMaximum((1<<(size*8))-1);
 	ui.spinBox->setValue(value);
 
-	connect(ui.pushButton, &QPushButton::clicked, [=]()
+	connect(ui.pushButton, &QPushButton::clicked, [this, address, size]()
 		{
 			int newValue = ui.spinBox->value();
 			emit DataChanged(address, size, newValue);

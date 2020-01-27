@@ -56,6 +56,7 @@ void ConnectivityFrame::EnableControls()
 	ui.btnConnect->setEnabled(!connected && ui.cboPorts->currentIndex() >= 0);
 	ui.btnDisconnect->setEnabled(connected);
 	ui.btnScan->setEnabled(connected && checkedItems(ui.listBauds) > 0);
+	ui.btnStopScan->setEnabled(scanThread != nullptr);
 }
 
 
@@ -105,6 +106,7 @@ void ConnectivityFrame::onScanClicked(void)
 	connect(scanThread.data(), SIGNAL(FoundDevice(int, int, int)), SLOT(onFoundDevice(int, int, int)));
 	connect(scanThread.data(), SIGNAL(finished()), SLOT(onScanFinished()));
 	scanThread->start();
+	EnableControls();
 }
 
 void ConnectivityFrame::onScanFinished()

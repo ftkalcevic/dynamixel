@@ -2,6 +2,7 @@
 #include <QtCore/QDebug>
 #include <QtCore/QSettings>
 #include <QtCore/QMetaType>
+#include <QtWidgets/QMessageBox>
 
 class DeviceInfo
 {
@@ -41,8 +42,35 @@ QtDynamixelTestTool::QtDynamixelTestTool(QWidget *parent)
 	connect(ui.frameConnectivity, SIGNAL(ScanStart()), SLOT(onScanStart()));
 	connect(ui.frameConnectivity, SIGNAL(FoundDevice(int, int, int)), SLOT(onFoundDevice(int, int, int)));
 	connect(ui.treeDevices, SIGNAL(itemSelectionChanged()), SLOT(onDeviceSelectionChanged()) );
+	connect(ui.treeDevices, &QTreeWidget::customContextMenuRequested, this, &QtDynamixelTestTool::contextMenu);
+
 	readSettings();
 	EnableControls();
+}
+
+
+void QtDynamixelTestTool::contextMenu(const QPoint& pos)
+{
+	if (ui.treeDevices->selectedItems().count() > 0)
+	{
+		QTreeWidgetItem* item = ui.treeDevices->itemAt(pos);
+		QVariant vInfo = item->data(0, Qt::UserRole);
+		if (vInfo.isValid())
+		{
+			QMenu menu(this);
+
+			QAction* action = new QAction("View");
+			menu.addAction(action);
+			connect(action, SIGNAL(triggered()), this, SLOT(onDeviceSelectionChanged()));
+
+			action = new QAction("Factory Reset");
+			menu.addAction(action);
+			connect(action, SIGNAL(triggered()), this, SLOT(onFactoryReset()));
+
+			QPoint pt(pos);
+			menu.exec(ui.treeDevices->mapToGlobal(pos));
+		}
+	}
 }
 
 void QtDynamixelTestTool::closeEvent(QCloseEvent*)
@@ -151,6 +179,29 @@ void QtDynamixelTestTool::onDeviceSelectionChanged()
 		{
 			DeviceInfo info = vInfo.value<DeviceInfo>();
 			ui.frameDevice->InitialiseData(iface, info.modelNumber(), info.id(), info.baud());
+		}
+	}
+}
+
+
+void QtDynamixelTestTool::onFactoryReset()
+{
+	if (ui.treeDevices->selectedItems().count() > 0)
+	{
+		QTreeWidgetItem* item = ui.treeDevices->selectedItems().first();
+		QVariant vInfo = item->data(0, Qt::UserRole);
+		if (vInfo.isValid())
+		{
+			QMessageBox msgBox;
+			DeviceInfo info = vInfo.value<DeviceInfo>();
+			msgBox.setText(QString("Are you sure you want to Factory Reset device '%1', id '%2'?").arg(iface->getDevices().value(info.modelNumber()).name).arg(info.id()));
+			msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+			msgBox.setDefaultButton(QMessageBox::No);
+			msgBox.setIcon(QMessageBox::Warning);
+			if (msgBox.exec() == QMessageBox::Yes)
+			{
+				iface->FactoryReset(info.id());
+			}
 		}
 	}
 }

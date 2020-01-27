@@ -9,7 +9,7 @@ EditEnum::EditEnum(QWidget* parent, int address, int size, int value, const QLis
 	ui.groupBox->setTitle(name);
 	ui.label->setText(desc);
 	ui.comboBox->setEnabled(!readOnly);
-	ui.pushButton->setEnabled(!readOnly);
+	ui.pushButton->setVisible(!readOnly);
 	for each (auto e in enums)
 	{
 		ui.comboBox->addItem(e.text, e.id);
@@ -17,7 +17,7 @@ EditEnum::EditEnum(QWidget* parent, int address, int size, int value, const QLis
 			ui.comboBox->setCurrentIndex(ui.comboBox->count()-1);
 	}
 
-	connect(ui.pushButton, &QPushButton::clicked, [=]()
+	connect(ui.pushButton, &QPushButton::clicked, [this,address,size]()
 		{
 			int newValue = ui.comboBox->currentData().toInt();
 			emit DataChanged(address, size, newValue);

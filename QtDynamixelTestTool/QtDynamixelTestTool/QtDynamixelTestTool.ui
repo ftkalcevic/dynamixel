@@ -30,6 +30,9 @@
          <height>0</height>
         </size>
        </property>
+       <property name="contextMenuPolicy">
+        <enum>Qt::CustomContextMenu</enum>
+       </property>
        <property name="styleSheet">
         <string notr="true">QTreeView::branch:has-siblings:!adjoins-item {
     border-image: url(vline.png) 0;

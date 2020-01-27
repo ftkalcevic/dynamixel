@@ -2,6 +2,7 @@
 #include "EditInt.h"
 #include "EditEnum.h"
 #include "EditBoolean.h"
+#include <QDebug>
 
 DeviceFrame::DeviceFrame(QWidget *parent)
 	: QFrame(parent)
@@ -95,7 +96,7 @@ void DeviceFrame::onDataPollTimeout()
 	const Device& d = iface->getDevices().find(modelNumber).value();
 	int dataCount = d.ramData.last().address + d.ramData.last().size;
 
-	QByteArray buf(dataCount, 0);
+	QByteArray buf(dataCount+200, 0);
 	if (iface->Read(deviceId, 0, dataCount, (uint8_t*)buf.data()))	// TODO make an async call
 	{
 		// Process the data
@@ -110,6 +111,10 @@ void DeviceFrame::onDataPollTimeout()
 			ui.tableDevice->item(row, 2)->setText(FormatData(buf, dd.address, dd.size));
 			row++;
 		}
+	}
+	else
+	{
+		qDebug() << "Failed to read memory";
 	}
 
 	dataPollTimer.start(1000);
@@ -166,14 +171,7 @@ void DeviceFrame::onSelectionChanged()
 			layout->addWidget(frame);
 			ui.frame->setLayout(layout);
 		}
-		// BooleanOnOff
-		// Baud - enum
 	}
-	else
-	{
-		// Show device info
-	}
-
 }
 
 

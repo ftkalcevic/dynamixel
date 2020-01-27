@@ -6,7 +6,7 @@
 #include "Protocol1.h"
 #include "Device.h"
 
-#define DEFAULT_TIMEOUT	100		// ms
+#define DEFAULT_TIMEOUT	250		// ms
 
 class SerialInterface : public QObject, public Protocol1
 {
@@ -19,6 +19,7 @@ class SerialInterface : public QObject, public Protocol1
 
 	void ReadConfig();
 	bool SendAndWait(uint8_t *packet, int packet_len, uint8_t *return_buffer = NULL, int timeout=DEFAULT_TIMEOUT);
+	bool Send(uint8_t* packet, int packet_len, int timeout = DEFAULT_TIMEOUT);
 
 public:
 	SerialInterface(QObject *parent);
@@ -32,5 +33,6 @@ public:
 	bool Ping(uint8_t id);
 	bool Read(uint8_t id, uint8_t address, uint8_t len, uint8_t* buffer);
 	bool Write(uint8_t id, uint8_t address, uint8_t len, uint8_t* buffer);
+	bool FactoryReset(uint8_t id);
 	QMap<int, Device>& getDevices() { return devices; }
 };

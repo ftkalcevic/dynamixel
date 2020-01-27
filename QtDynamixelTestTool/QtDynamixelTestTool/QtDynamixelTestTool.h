@@ -25,4 +25,6 @@ public slots:
 	void onFoundDevice(int baud, int id, int model);
 	void onScanStart();
 	void onDeviceSelectionChanged();
+	void contextMenu(const QPoint& pos);
+	void onFactoryReset();
 };

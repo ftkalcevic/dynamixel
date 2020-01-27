@@ -185,6 +185,7 @@ bool ValidChecksum(uint8_t* packet, int packet_len)
 #define INS_PING 0x01
 #define INS_READ 0x02
 #define INS_WRITE 0x03
+#define INS_FACTORY_RESET	0x06
 
 #define MAX_PACKET	(0xFF+4)	// len + (header1,header2,id,chksum)
 
@@ -224,6 +225,32 @@ bool SerialInterface::Write(uint8_t id, uint8_t address, uint8_t len, uint8_t* b
 	return false;
 }
 
+bool SerialInterface::FactoryReset(uint8_t id)
+{
+	uint8_t packet[8] = { 0xFF, 0xFF, id, 0x02, INS_FACTORY_RESET, 0 };
+	UpdateChecksum(packet, sizeof(packet));
+
+	if (Send(packet, sizeof(packet)))
+	{
+		return true;
+	}
+	return false;
+}
+
+bool SerialInterface::Send(uint8_t* packet, int packet_len, int timeout)
+{
+	if (!port->isOpen())
+		return false;
+
+	port->write((const char*)packet, packet_len);
+	while (port->bytesToWrite() > 0)
+	{
+		if (!port->waitForBytesWritten(timeout))
+			return false;
+	}
+	return true;
+}
+
 bool SerialInterface::SendAndWait(uint8_t* packet, int packet_len, uint8_t* return_buffer, int timeout)
 {
 	if (!port->isOpen())
@@ -249,7 +276,7 @@ bool SerialInterface::SendAndWait(uint8_t* packet, int packet_len, uint8_t* retu
 
 		ptr += bytes_read;
 		len += bytes_read;
-		if (len >= 4 && status_packet[3] + 4 >= len)
+		if (len >= 4 && status_packet[3] + 4 <= len)
 		{
 			// got valid status reply
 			if (ValidChecksum(status_packet, status_packet[3] + 4))
