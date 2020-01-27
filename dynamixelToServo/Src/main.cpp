@@ -113,9 +113,15 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 
 enum ControlMode
 {
-	position,
+	position=0,
 	torque,
 	velocity
+};
+
+enum CalibrateState
+{
+	Minimum,
+	Maximum
 };
 
 #define MAX_PWM 1023
@@ -124,6 +130,18 @@ PID<5> pidPosition(100,0,0);
 PID<5> pidTorque(100,0,0);
 PID<5> pidCurrent(100,0,0);
 bool reverseMotor = true;
+bool bAutoCalibrating = false;
+CalibrateState autoCalibrateState;
+
+ControlMode old_mode;
+uint8_t old_torqueenable;
+uint16_t old_movingSpeed;
+#define MAX_AVG_SAMPLES	16
+uint16_t position_average[MAX_AVG_SAMPLES];
+uint8_t position_average_index;
+uint16_t last_autocalibrate_position;
+uint8_t autocalibrate_nochange;
+#define AUTOCALIBRATE_HOLD_TIME	25
 
 #ifdef DEBUG
 //#define DEBUG_PID
@@ -158,16 +176,68 @@ uint16_t GetusTick()
 }
 static void UpdateMotor()
 {
-	// do this better (average)
+	// do this better (average) - include voltage register.c.PresentVoltage and register.c.PresentTemperature (from ADC)
 	uint32_t pot = (analogs[4] + analogs[5] + analogs[6] + analogs[7])/4;
 	uint32_t iload = (analogs[0] + analogs[1] + analogs[2] + analogs[3])/4;
+	
+	position_average[position_average_index & (MAX_AVG_SAMPLES-1)] = pot;
+	position_average_index++;
+	uint32_t sum = position_average[0];
+	for (int i = 1; i < MAX_AVG_SAMPLES; i++)
+		sum += position_average[i];
+	uint16_t position = sum/MAX_AVG_SAMPLES;
 	
 	//printf("pot=%d, iload=%d\n", pot,iload);
 	// put "mode" in free register (eeprom, ram?)
 	// mode - position, torque (i), velocity (pwm)
 	bus.registers.c.PresentPosition = pot;
 	bus.registers.c.PresentLoad = iload;
-
+	bus.registers.c.RealtimeTick = HAL_GetTick() & 0xFFFF;
+	if (bus.registers.c.AutoCalibrate && !bAutoCalibrating)
+	{
+		old_mode = mode;
+		old_torqueenable = bus.registers.c.TorqueEnable;
+		old_movingSpeed = bus.registers.c.MovingSpeed;
+		
+		mode = ControlMode::torque;
+		bus.registers.c.TorqueEnable = 1;
+		
+		autoCalibrateState = CalibrateState::Minimum;
+		bus.registers.c.MovingSpeed = 0x0;
+		bAutoCalibrating = true;
+		last_autocalibrate_position = position;
+		autocalibrate_nochange = 0;
+	}
+	else if (bAutoCalibrating)
+	{
+		if (last_autocalibrate_position == position)
+			autocalibrate_nochange++;
+		else
+			autocalibrate_nochange=0;
+		last_autocalibrate_position = position;
+		if (autocalibrate_nochange > AUTOCALIBRATE_HOLD_TIME)
+		{
+			if (autoCalibrateState == CalibrateState::Minimum)
+			{
+				bus.registers.e.CCWAngleLimit = position;
+				bus.registers.c.MovingSpeed = 0x400;
+				autocalibrate_nochange = 0;
+				autoCalibrateState = CalibrateState::Maximum;
+			}
+			else
+			{
+				bus.registers.e.CWAngleLimit = position;
+				bus.WriteEEPROMAsync();
+				
+				bus.registers.c.AutoCalibrate = 0;
+				bAutoCalibrating = false;
+				mode = old_mode;
+				bus.registers.c.TorqueEnable = old_torqueenable;
+				bus.registers.c.MovingSpeed = old_movingSpeed;
+			}
+		}
+	}
+	
 	static bool running = false;
 	if (bus.registers.c.TorqueEnable)
 	{
@@ -374,7 +444,7 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  printf("Starting dynamixelToServo\r\n");
+  //printf("Starting dynamixelToServo\r\n");
 
   while (1)
   {
@@ -878,5 +948,15 @@ TODO
 	* velocity (v/pwm)
 	* Do we have a gripper mode?
 	* Position + max torque? (honor max-torque)
+* Auto calibrate
+	* automatically find min/max position (by moving - less n%)
+	* can we autotune the pids?
+	* new commands/variables
+		* mode (position/torque/velocity)
+		* auto calibrate
+		* P,I,D for pos/torq/vel - in eeprom
+	* how to define what is in eeprom or ram
+		* currently first 24 bytes are in eeprom (no address space between eeprom and ram)
+		* do we just flag each address as ram or eeprom - ie they can be anywhere, and if we change an eeprom, we write everything?)
 
 */

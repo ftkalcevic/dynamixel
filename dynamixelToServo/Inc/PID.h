@@ -3,6 +3,7 @@
 template <int SCALE>
 class PID
 {
+	// TODO - read PID from memory
 	int16_t Kp, Ki, Kd;
 	int32_t i_error;
 	int16_t last_error;

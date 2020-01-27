@@ -60,6 +60,8 @@ struct ControlRegisters
 	uint16_t RealtimeTick;		// 50	
 	uint8_t pad5[21];
 	uint8_t GoalAcceleration;	// 73	
+	uint8_t Mode;				// 74
+	uint8_t AutoCalibrate;		// 75
 };
 
 struct Registers
@@ -106,6 +108,8 @@ class Protocol1
 	static const uint8_t ERROR_OVERHEAT	    = 0b00000100;
 	static const uint8_t ERROR_ANGLE_LIMIT	= 0b00000010;
 	static const uint8_t ERROR_INPUT_VOLTAGE= 0b00000001;
+
+	static const uint16_t DXL2SERVO			= 65501;
 	
 	SerialBase &serial;
 	
@@ -506,6 +510,8 @@ public:
 				
 			case INS_FACTORY_RESET:
 				SetFactoryDefaults();
+				WriteEEPROM();
+				// Fall through, to reboot
 				
 			case INS_REBOOT:
 				// reply, wait, then reboot
@@ -550,16 +556,16 @@ public:
 	
 	void SetFactoryDefaults()
 	{
-		registers.e.ModelNumber = 29;//0x8000+29;
-		registers.e.FirmwareVersion = 36;
+		registers.e.ModelNumber = DXL2SERVO;
+		registers.e.FirmwareVersion = 1;
 		registers.e.ID = 1;
 		registers.e.BaudRate = 34;
 		registers.e.ReturnDelayTime = 0;
 		registers.e.CWAngleLimit = 400;
 		registers.e.CCWAngleLimit = 260;
 		registers.e.TemperatureLimit = 80;
-		registers.e.MinVoltageLimit = 60;
-		registers.e.MaxVoltageLimit = 160;
+		registers.e.MinVoltageLimit = 40;
+		registers.e.MaxVoltageLimit = 70;
 		registers.e.MaxTorque = 0x3ff;
 		registers.e.StatusReturnLevel = 2;
 		registers.e.AlarmLED = 36;
@@ -596,9 +602,10 @@ public:
 		registers.c.Punch = 0;				
 		registers.c.RealtimeTick = 0;		
 		registers.c.GoalAcceleration = 0;	
+		registers.c.Mode = 0;
+		registers.c.AutoCalibrate = 0;
 		
-		
-		registers.c.TorqueLimit = 50;		
+		//registers.c.TorqueLimit = 50;		
 	}
 	
 	void WriteEEPROM()
